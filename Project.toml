@@ -1,0 +1,13 @@
+name = "SphericalHarmonics"
+uuid = "c489a379-e885-57ff-9236-bd896d33c250"
+
+[deps]
+# StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
+# JSON = "682c06a0-de6a-54ab-a142-c8b1cf79cde6"
+# LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
+# Reexport = "189a3867-3050-52da-a836-e630ba90ab69"
+# Roots = "f2b01f46-fcfa-551c-844a-d8ac1e96c665"
+# StaticPolynomials = "62e018b1-6e46-5407-a5a7-97d4fbcae734"
+
+[compat]
+julia = "≥0.7"
