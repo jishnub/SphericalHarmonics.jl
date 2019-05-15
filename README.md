@@ -1,3 +1,15 @@
+# Spherical Harmonics
+
+This is a fork of an older Julia repository to experiment with spherical
+harmonics computations. The original code was modified to use complex
+instead of real spherical harmonics. We will likely revert back to real
+spherical harmonics very soon.
+
+This is still in testing stages, and probably not useful for real development.
+
+
+# ORIGINAL README: 
+
 # Associated Legendre Polynomials and Spherical Harmonics Computation for Chemistry Applications
 
 A Julia module for accurate and efficient computation of associated Legendre polynomials and real spherical harmonics for use in chemistry applications.
