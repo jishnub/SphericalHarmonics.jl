@@ -2,7 +2,11 @@
 
 module SphericalHarmonics
 
-export compute_y, compute_y!
+using StaticArrays, LinearAlgebra
+
+const SVec3 = SVector{3}
+
+export compute_y, compute_y!, cYlm_from_cart, cYlm_from_cart!
 
 """
 	sizeP(maxDegree)
@@ -179,7 +183,7 @@ function compute_y!(L::Int, x::Float64, phi::Float64,
 	end
 
 	return Y
-end 
+end
 
 """
 	compute_y(L, x, φ)
@@ -196,4 +200,124 @@ function compute_y(L::Int, x::Float64, phi::Float64)
 	return Y
 end
 
+
+# ------------------------------------------------------------------------
+#                  NEW CARTESIAN IMPLEMENTATION
+# ------------------------------------------------------------------------
+
+
+function compute_rxz(R::SVec3{T}) where {T}
+   r = norm(R)
+   z = R[3] / r
+   x = R[2] / sqrt(1 - z^2) / r
+   s = sign(R[1])
+   return r, x, z, s
 end
+
+function cYlm_from_cart!(Y, L, r, x, z, s, P)
+	@assert length(P) >= sizeP(L)
+	@assert length(Y) >= sizeY(L)
+   @assert abs(z) <= 1.0
+
+	SQRT2_DIV_2 = 0.5 * 1.41421356237309504880
+	INVSQRT2 = 1 / 1.41421356237309504880
+
+	for l = 0:L
+		Y[index_y(l, 0)] = P[index_p(l, 0)] * SQRT2_DIV_2
+	end
+
+   sig = 1
+   ep = INVSQRT2
+   ep_fact = s * sqrt(1-x^2) + im * x
+	for m in 1:L
+		sig *= -1
+		ep *= ep_fact        # ep =   exp(i *   m  * φ)
+		em = sig * conj(ep)  # ep = ± exp(i * (-m) * φ)
+		for l in m:L
+			p = P[index_p(l,m)]
+			Y[index_y(l, -m)] = em * p   # (-1)^m * p * exp(-im*m*phi) / sqrt(2)
+			Y[index_y(l,  m)] = ep * p   # p * exp( im*m*phi) / sqrt(2)
+		end
+	end
+
+	return Y
+end
+
+
+"""
+	cYlm_from_xz(L, x, z)
+
+Compute an entire set of real spherical harmonics ``Y_{l,m}(θ, φ)`` for
+``x = cos θ, z = sin φ`` where ``0 ≤ l ≤ L`` and ``-l ≤ m ≤ l``.
+"""
+function cYlm_from_cart(L::Integer, R::SVec3{T}) where {T}
+   r, x, z, s = compute_rxz(R)
+	P = Vector{T}(undef, sizeP(L))
+	coeff = compute_coefficients(L)
+	compute_p!(L, z, coeff, P)
+	Y = Vector{ComplexF64}(undef, sizeY(L))
+	cYlm_from_cart!(Y, L, r, x, z, s, P)
+	return Y
+end
+
+
+
+
+# ------- Experimental
+
+
+function rYlm_from_cart!(Y, L, r, x, z, s, P)
+	@assert length(P) >= sizeP(L)
+	@assert length(Y) >= sizeY(L)
+   @assert abs(z) <= 1.0
+
+	SQRT2_DIV_2 = 0.5 * 1.41421356237309504880
+	INVSQRT2 = 1 / 1.41421356237309504880
+
+	for l = 0:L
+		Y[index_y(l, 0)] = P[index_p(l, 0)] * SQRT2_DIV_2
+	end
+
+   sig = 1
+   cosφ = x
+   sinφ = s * sqrt(1-x^2)
+   cosmφ = 1.0
+   sinmφ = 0.0
+	for m in 1:L
+		sig *= -1
+      # recursive formula for trigs
+      cosmφ, sinmφ = (cosmφ * cosφ - sinmφ * sinφ), (cosmφ * sinφ + sinmφ *  cosφ)
+		for l in m:L
+			p = P[index_p(l,m)]
+			Y[index_y(l, -m)] = sig * p * cosmφ
+			Y[index_y(l,  m)] =       p * sinmφ
+		end
+	end
+
+	return Y
+end
+
+
+end
+
+
+
+
+	# ------ real spherical harmonics code ----------------
+	# NR2 5.5.4-5.5.5
+	# c1 = 1.0; c2 = cos(phi)
+	# s1 = 0.0; s2 = -sin(phi)
+	# tc = 2.0 * c2
+	# for m in 1:L
+	# 	s = tc * s1 - s2
+	# 	c = tc * c1 - c2
+	# 	s2 = s1
+	# 	s1 = s
+	# 	c2 = c1
+	# 	c1 = c
+	# 	for l in m:L
+	# 		Y[index_y(l, -m)] = P[index_p(l, m)] * s
+	# 		Y[index_y(l, m)] = P[index_p(l, m)] * c
+	# 	end
+	# end
+	# ------------------------------------------------------------
