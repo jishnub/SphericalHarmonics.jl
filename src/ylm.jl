@@ -6,7 +6,7 @@ using StaticArrays, LinearAlgebra
 
 const SVec3 = SVector{3}
 
-export compute_y, compute_y!, cYlm_from_cart, cYlm_from_cart!
+export compute_y, compute_y!, cYlm_from_cart, cYlm_from_cart!, index_y
 
 """
 	sizeP(maxDegree)
