@@ -49,8 +49,8 @@ struct ALPCoefficients
 end
 
 ALPCoefficients(maxDegree::Int) =
-	ALPCoefficients( Array{Float64}(undef, sizeP(maxDegree)),
-						  Array{Float64}(undef, sizeP(maxDegree)) )
+	ALPCoefficients( zeros(sizeP(maxDegree)),
+						  zeros(sizeP(maxDegree)) )
 
 """
 	compute_coefficients(L)
@@ -59,25 +59,29 @@ Precompute coefficients ``a_l^m`` and ``b_l^m`` for all l <= L, m <= l
 """
 function compute_coefficients(L::Integer)
 	coeff = ALPCoefficients(L)
-	for l in 2:L
-		ls = l*l
-		lm1s = (l-1) * (l-1)
-		for m in 0:(l-2)
-			ms = m * m
-			coeff.A[index_p(l, m)] = sqrt((4 * ls - 1.0) / (ls - ms))
-			coeff.B[index_p(l, m)] = -sqrt((lm1s - ms) / (4 * lm1s - 1.0))
-		end
+	for l in 2:L, m in 0:(l-2)
+
+		coeff.A[index_p(l, m)] = sqrt((4l^2 - 1.0) / (l^2 - m^2))
+		coeff.B[index_p(l, m)] = -sqrt(((l-1)^2 - m^2) / (4 * (l-1)^2 - 1))
 	end
 	return coeff
 end
 
 """
-	compute_coefficients(L)
+	allocate_p(L)
 
 Create an array large enough to store an entire set of Associated Legendre
 Polynomials ``P_l^m(x)`` of maximum degree L.
 """
-allocate_p(L::Integer) = Array{Float64}(undef, sizeP(L))
+allocate_p(L::Integer) = zeros(sizeP(L))
+
+"""
+	allocate_y(L)
+
+Create an array large enough to store an entire set of spherical harmonics
+``Y_{l,m}(θ,φ)`` of maximum degree L.
+"""
+allocate_y(L::Integer) = zeros(ComplexF64,sizeY(L))
 
 """
 	compute_p(L, x, coeff, P)
@@ -85,21 +89,18 @@ allocate_p(L::Integer) = Array{Float64}(undef, sizeP(L))
 Compute an entire set of Associated Legendre Polynomials ``P_l^m(x)``
 using the given coefficients, and store in the array P.
 """
-function compute_p!(L::Integer, x::Real, coeff::ALPCoefficients,
-					     P::Vector{Float64})
+function compute_p!(L::Integer, x::Real, coeff::ALPCoefficients,P::Vector{Float64})
 	@assert length(coeff.A) >= sizeP(L)
 	@assert length(coeff.B) >= sizeP(L)
 	@assert length(P) >= sizeP(L)
 
-	sintheta = sqrt(1.0 - x * x)
-	temp = 0.39894228040143267794 # = sqrt(0.5/M_PI)
+	sintheta = sqrt(1.0 - x^2)
+	temp = √(1/2π)
 	P[index_p(0, 0)] = temp
 
 	if (L > 0)
-		SQRT3 = 1.7320508075688772935
-		P[index_p(1, 0)] = x * SQRT3 * temp
-		SQRT3DIV2 = -1.2247448713915890491
-		temp = SQRT3DIV2 * sintheta * temp
+		P[index_p(1, 0)] = x * √3 * temp
+		temp = -√(3/2) * sintheta * temp
 		P[index_p(1, 1)] = temp
 
 		for l in 2:L
@@ -135,9 +136,8 @@ Compute an entire set of spherical harmonics ``Y_{l,m}(θ,φ)``
 using the given Associated Legendre Polynomials ``P_l^m(cos θ)``
 and store in array Y
 """
-function compute_y!(L::Integer, x::Real, ϕ::Real,
-						  P::Vector{Float64},
-						  Y::Vector{ComplexF64})
+function compute_y!(L::Integer, x::Real, ϕ::Real,P::Vector{Float64},Y::Vector{ComplexF64})
+
 	@assert length(P) >= sizeP(L)
 	@assert length(Y) >= sizeY(L)
 
