@@ -123,7 +123,7 @@ Compute an entire set of Associated Legendre Polynomials ``P_l^m(x)`` where
 ``0 ≤ l ≤ L`` and ``0 ≤ m ≤ l``. Assumes ``|x| ≤ 1``.
 """
 function compute_p(L::Integer, x::Real)
-	P = Array{Float64}(undef, sizeP(L))
+	P = allocate_p(L)
 	coeff = compute_coefficients(L)
 	compute_p!(L, x, coeff, P)
 	return P
@@ -188,10 +188,10 @@ Compute an entire set of spherical harmonics ``Y_{l,m}(θ,φ)`` for
 ``x = cos θ`` where ``0 ≤ l ≤ L`` and ``-l ≤ m ≤ l``.
 """
 function compute_y(L::Integer, x::Real, ϕ::Real)
-	P = Array{Float64}(undef, sizeP(L))
+	P = allocate_p(L)
 	coeff = compute_coefficients(L)
 	compute_p!(L, x, coeff, P)
-	Y = Array{ComplexF64}(undef, sizeY(L))
+	Y = allocate_y(L)
 	compute_y!(L, x, ϕ, P, Y)
 	return Y
 end
@@ -248,10 +248,10 @@ Compute an entire set of real spherical harmonics ``Y_{l,m}(θ, φ)`` for
 """
 function cYlm_from_cart(L::Integer, R::SVec3{T}) where {T}
    r, x, z, s = compute_rxz(R)
-	P = Vector{T}(undef, sizeP(L))
+	P = zeros(T, sizeP(L))
 	coeff = compute_coefficients(L)
 	compute_p!(L, z, coeff, P)
-	Y = Vector{ComplexF64}(undef, sizeY(L))
+	Y = (ComplexF64, sizeY(L))
 	cYlm_from_cart!(Y, L, r, x, z, s, P)
 	return Y
 end
