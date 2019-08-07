@@ -1,12 +1,9 @@
-
-
-
-
 using StaticArrays, LinearAlgebra
 
 const SVec3 = SVector{3}
 
-export compute_y, compute_y!, cYlm_from_cart, cYlm_from_cart!, index_y
+export compute_y, compute_y!, cYlm_from_cart, cYlm_from_cart!, index_y, 
+compute_p, compute_p!
 
 """
 	sizeP(maxDegree)
@@ -19,7 +16,7 @@ sizeP(maxDegree) = div((maxDegree + 1) * (maxDegree + 2), 2)
 """
 	sizeY(maxDegree)
 
-Return the size of the set of real spherical harmonics ``Y_{l,m}(θ,φ)`` of
+Return the size of the set of spherical harmonics ``Y_{l,m}(θ,φ)`` of
 degree less than or equal to the given maximum degree
 """
 sizeY(maxDegree) = (maxDegree + 1) * (maxDegree + 1)
@@ -36,7 +33,7 @@ index_p(l,m) = m + div(l*(l+1), 2) + 1
 """
 	index_y(l,m)
 
-Return the index into a flat array of real spherical harmonics ``Y_{l,m}``
+Return the index into a flat array of spherical harmonics ``Y_{l,m}``
 for the given indices ``(l,m)``.
 ``Y_{l,m}`` are stored in l-major order i.e.
 [Y(0,0), [Y(1,-1), Y(1,0), Y(1,1), Y(2,-2), ...]
@@ -60,7 +57,7 @@ ALPCoefficients(maxDegree::Int) =
 
 Precompute coefficients ``a_l^m`` and ``b_l^m`` for all l <= L, m <= l
 """
-function compute_coefficients(L::Int)
+function compute_coefficients(L::Integer)
 	coeff = ALPCoefficients(L)
 	for l in 2:L
 		ls = l*l
@@ -80,7 +77,7 @@ end
 Create an array large enough to store an entire set of Associated Legendre
 Polynomials ``P_l^m(x)`` of maximum degree L.
 """
-allocate_p(L::Int) = Array{Float64}(undef, sizeP(L))
+allocate_p(L::Integer) = Array{Float64}(undef, sizeP(L))
 
 """
 	compute_p(L, x, coeff, P)
@@ -88,8 +85,8 @@ allocate_p(L::Int) = Array{Float64}(undef, sizeP(L))
 Compute an entire set of Associated Legendre Polynomials ``P_l^m(x)``
 using the given coefficients, and store in the array P.
 """
-function compute_p!(L::Int, x::Float64, coeff::ALPCoefficients,
-					     P::Array{Float64,1})
+function compute_p!(L::Integer, x::Real, coeff::ALPCoefficients,
+					     P::Vector{Float64})
 	@assert length(coeff.A) >= sizeP(L)
 	@assert length(coeff.B) >= sizeP(L)
 	@assert length(P) >= sizeP(L)
@@ -124,7 +121,7 @@ end
 Compute an entire set of Associated Legendre Polynomials ``P_l^m(x)`` where
 ``0 ≤ l ≤ L`` and ``0 ≤ m ≤ l``. Assumes ``|x| ≤ 1``.
 """
-function compute_p(L::Int, x::Float64)
+function compute_p(L::Integer, x::Real)
 	P = Array{Float64}(undef, sizeP(L))
 	coeff = compute_coefficients(L)
 	compute_p!(L, x, coeff, P)
@@ -132,27 +129,26 @@ function compute_p(L::Int, x::Float64)
 end
 
 """
-	compute_y(L, P, φ, Y)
+	compute_y!(L, x, φ, P, Y)
 
-Compute an entire set of real spherical harmonics ``Y_{l,m}(θ,φ)``
+Compute an entire set of spherical harmonics ``Y_{l,m}(θ,φ)``
 using the given Associated Legendre Polynomials ``P_l^m(cos θ)``
 and store in array Y
 """
-function compute_y!(L::Int, x::Float64, phi::Float64,
-						  P::Array{Float64,1},
-						  Y::Array{ComplexF64,1})
+function compute_y!(L::Integer, x::Real, ϕ::Real,
+						  P::Vector{Float64},
+						  Y::Vector{ComplexF64})
 	@assert length(P) >= sizeP(L)
 	@assert length(Y) >= sizeY(L)
 
-	SQRT2 = 1.41421356237309504880
 	for l in 0:L
-		Y[index_y(l, 0)] = P[index_p(l, 0)] * 0.5 * SQRT2
+		Y[index_y(l, 0)] = P[index_p(l, 0)] * 0.5 * √2
 	end
 
 	# ------ real spherical harmonics code ----------------
 	# NR2 5.5.4-5.5.5
-	# c1 = 1.0; c2 = cos(phi)
-	# s1 = 0.0; s2 = -sin(phi)
+	# c1 = 1.0; c2 = cos(ϕ)
+	# s1 = 0.0; s2 = -sin(ϕ)
 	# tc = 2.0 * c2
 	# for m in 1:L
 	# 	s = tc * s1 - s2
@@ -168,15 +164,15 @@ function compute_y!(L::Int, x::Float64, phi::Float64,
 	# end
 	# ------------------------------------------------------------
 
-   sig = 1
+	sig = 1
 	for m in 1:L
 		sig *= -1
-		ep = exp(im*m*phi) / sqrt(2)
+		ep = cis(m*ϕ) / √2
 		em = sig * conj(ep)
 		for l in m:L
 			p = P[index_p(l,m)]
-			# Y[index_y(l, -m)] = (-1)^m * p * exp(-im*m*phi) / sqrt(2)
-			# Y[index_y(l,  m)] = p * exp( im*m*phi) / sqrt(2)
+			# Y[index_y(l, -m)] = (-1)^m * p * exp(-im*m*ϕ) / sqrt(2)
+			# Y[index_y(l,  m)] = p * exp( im*m*ϕ) / sqrt(2)
 			Y[index_y(l, -m)] = em * p
 			Y[index_y(l,  m)] = ep * p
 		end
@@ -188,15 +184,15 @@ end
 """
 	compute_y(L, x, φ)
 
-Compute an entire set of real spherical harmonics ``Y_{l,m}(θ,φ)`` for
+Compute an entire set of spherical harmonics ``Y_{l,m}(θ,φ)`` for
 ``x = cos θ`` where ``0 ≤ l ≤ L`` and ``-l ≤ m ≤ l``.
 """
-function compute_y(L::Int, x::Float64, phi::Float64)
+function compute_y(L::Integer, x::Real, ϕ::Real)
 	P = Array{Float64}(undef, sizeP(L))
 	coeff = compute_coefficients(L)
 	compute_p!(L, x, coeff, P)
 	Y = Array{ComplexF64}(undef, sizeY(L))
-	compute_y!(L, x, phi, P, Y)
+	compute_y!(L, x, ϕ, P, Y)
 	return Y
 end
 
@@ -235,8 +231,8 @@ function cYlm_from_cart!(Y, L, r, x, z, s, P)
 		em = sig * conj(ep)  # ep = ± exp(i * (-m) * φ)
 		for l in m:L
 			p = P[index_p(l,m)]
-			Y[index_y(l, -m)] = em * p   # (-1)^m * p * exp(-im*m*phi) / sqrt(2)
-			Y[index_y(l,  m)] = ep * p   # p * exp( im*m*phi) / sqrt(2)
+			Y[index_y(l, -m)] = em * p   # (-1)^m * p * exp(-im*m*ϕ) / sqrt(2)
+			Y[index_y(l,  m)] = ep * p   # p * exp( im*m*ϕ) / sqrt(2)
 		end
 	end
 
@@ -303,8 +299,8 @@ end
 
 	# ------ real spherical harmonics code ----------------
 	# NR2 5.5.4-5.5.5
-	# c1 = 1.0; c2 = cos(phi)
-	# s1 = 0.0; s2 = -sin(phi)
+	# c1 = 1.0; c2 = cos(ϕ)
+	# s1 = 0.0; s2 = -sin(ϕ)
 	# tc = 2.0 * c2
 	# for m in 1:L
 	# 	s = tc * s1 - s2
