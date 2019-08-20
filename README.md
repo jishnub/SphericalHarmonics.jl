@@ -1,9 +1,10 @@
 # Spherical Harmonics
 
+[![Build Status](https://travis-ci.com/jishnub/SphericalHarmonics.jl.svg?branch=master)](https://travis-ci.com/jishnub/SphericalHarmonics.jl)
+
 This is a fork of an older Julia repository to experiment with spherical
 harmonics computations. The original code was modified to use complex
-instead of real spherical harmonics. We will likely revert back to real
-spherical harmonics very soon.
+instead of real spherical harmonics.
 
 This is still in testing stages, and probably not useful for real development.
 

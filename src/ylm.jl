@@ -2,8 +2,7 @@ using StaticArrays, LinearAlgebra
 
 const SVec3 = SVector{3}
 
-export compute_y, compute_y!, cYlm_from_cart, cYlm_from_cart!, index_y, 
-compute_p, compute_p!
+export compute_y, compute_y!, index_y, compute_p, compute_p!
 
 """
 	sizeP(maxDegree)
@@ -59,7 +58,7 @@ Precompute coefficients ``a_l^m`` and ``b_l^m`` for all l <= L, m <= l
 """
 function compute_coefficients(L::Integer)
 	coeff = ALPCoefficients(L)
-	for l in 2:L, m in 0:(l-2)
+	@inbounds for l in 2:L, m in 0:(l-2)
 
 		coeff.A[index_p(l, m)] = sqrt((4l^2 - 1.0) / (l^2 - m^2))
 		coeff.B[index_p(l, m)] = -sqrt(((l-1)^2 - m^2) / (4 * (l-1)^2 - 1))
@@ -84,12 +83,12 @@ Create an array large enough to store an entire set of spherical harmonics
 allocate_y(L::Integer) = zeros(ComplexF64,sizeY(L))
 
 """
-	compute_p(L, x, coeff, P)
+	compute_p!(L, x, coeff, P)
 
 Compute an entire set of Associated Legendre Polynomials ``P_l^m(x)``
 using the given coefficients, and store in the array P.
 """
-function compute_p!(L::Integer, x::Real, coeff::ALPCoefficients,P::Vector{Float64})
+function compute_p!(L::Integer, x::Real, coeff::ALPCoefficients,P::Vector{<:Real})
 	@assert length(coeff.A) >= sizeP(L)
 	@assert length(coeff.B) >= sizeP(L)
 	@assert length(P) >= sizeP(L)
@@ -103,8 +102,8 @@ function compute_p!(L::Integer, x::Real, coeff::ALPCoefficients,P::Vector{Float6
 		temp = -√(3/2) * sintheta * temp
 		P[index_p(1, 1)] = temp
 
-		for l in 2:L
-			for m in 0:(l-2)
+		@inbounds for l in 2:L
+			@inbounds for m in 0:(l-2)
 				P[index_p(l, m)] = coeff.A[index_p(l, m)] *(x * P[index_p(l - 1, m)]
 						     + coeff.B[index_p(l, m)] * P[index_p(l - 2, m)])
 			end
@@ -136,43 +135,55 @@ Compute an entire set of spherical harmonics ``Y_{l,m}(θ,φ)``
 using the given Associated Legendre Polynomials ``P_l^m(cos θ)``
 and store in array Y
 """
-function compute_y!(L::Integer, x::Real, ϕ::Real,P::Vector{Float64},Y::Vector{ComplexF64})
+function compute_y!(L::Integer, x::Real, ϕ::Real,P::Vector{<:Real},Y::Vector{<:Complex})
 
 	@assert length(P) >= sizeP(L)
 	@assert length(Y) >= sizeY(L)
 
-	for l in 0:L
+	@inbounds for l in 0:L
 		Y[index_y(l, 0)] = P[index_p(l, 0)] * 0.5 * √2
 	end
 
-	# ------ real spherical harmonics code ----------------
-	# NR2 5.5.4-5.5.5
-	# c1 = 1.0; c2 = cos(ϕ)
-	# s1 = 0.0; s2 = -sin(ϕ)
-	# tc = 2.0 * c2
-	# for m in 1:L
-	# 	s = tc * s1 - s2
-	# 	c = tc * c1 - c2
-	# 	s2 = s1
-	# 	s1 = s
-	# 	c2 = c1
-	# 	c1 = c
-	# 	for l in m:L
-	# 		Y[index_y(l, -m)] = P[index_p(l, m)] * s
-	# 		Y[index_y(l, m)] = P[index_p(l, m)] * c
-	# 	end
-	# end
-	# ------------------------------------------------------------
-
 	sig = 1
-	for m in 1:L
+	@inbounds for m in 1:L
 		sig *= -1
 		ep = cis(m*ϕ) / √2
 		em = sig * conj(ep)
-		for l in m:L
+		@inbounds for l in m:L
 			p = P[index_p(l,m)]
-			# Y[index_y(l, -m)] = (-1)^m * p * exp(-im*m*ϕ) / sqrt(2)
-			# Y[index_y(l,  m)] = p * exp( im*m*ϕ) / sqrt(2)
+			Y[index_y(l, -m)] = em * p
+			Y[index_y(l,  m)] = ep * p
+		end
+	end
+
+	return Y
+end
+
+"""
+	compute_y!(L, x, φ, Y)
+
+Compute an entire set of spherical harmonics ``Y_{l,m}(θ,φ)``
+using the given Associated Legendre Polynomials ``P_l^m(cos θ)``,
+and store in array Y. 
+The Associated Legendre Polynomials are computed on the fly.
+"""
+function compute_y!(L::Integer, x::Real, ϕ::Real,Y::Vector{<:Complex})
+
+	@assert length(Y) >= sizeY(L)
+
+	P = compute_p(L,x)
+
+	@inbounds for l in 0:L
+		Y[index_y(l, 0)] = P[index_p(l, 0)] * 0.5 * √2
+	end
+
+	sig = 1
+	@inbounds for m in 1:L
+		sig *= -1
+		ep = cis(m*ϕ) / √2
+		em = sig * conj(ep)
+		@inbounds for l in m:L
+			p = P[index_p(l,m)]
 			Y[index_y(l, -m)] = em * p
 			Y[index_y(l,  m)] = ep * p
 		end
@@ -195,123 +206,3 @@ function compute_y(L::Integer, x::Real, ϕ::Real)
 	compute_y!(L, x, ϕ, P, Y)
 	return Y
 end
-
-
-# ------------------------------------------------------------------------
-#                  NEW CARTESIAN IMPLEMENTATION
-# ------------------------------------------------------------------------
-
-
-function compute_rxz(R::SVec3{T}) where {T}
-   r = norm(R)
-   z = R[3] / r
-   x = R[2] / sqrt(1 - z^2) / r
-   s = sign(R[1])
-   return r, x, z, s
-end
-
-function cYlm_from_cart!(Y, L, r, x, z, s, P)
-	@assert length(P) >= sizeP(L)
-	@assert length(Y) >= sizeY(L)
-   @assert abs(z) <= 1.0
-
-	SQRT2_DIV_2 = 0.5 * 1.41421356237309504880
-	INVSQRT2 = 1 / 1.41421356237309504880
-
-	for l = 0:L
-		Y[index_y(l, 0)] = P[index_p(l, 0)] * SQRT2_DIV_2
-	end
-
-   sig = 1
-   ep = INVSQRT2
-   ep_fact = s * sqrt(1-x^2) + im * x
-	for m in 1:L
-		sig *= -1
-		ep *= ep_fact        # ep =   exp(i *   m  * φ)
-		em = sig * conj(ep)  # ep = ± exp(i * (-m) * φ)
-		for l in m:L
-			p = P[index_p(l,m)]
-			Y[index_y(l, -m)] = em * p   # (-1)^m * p * exp(-im*m*ϕ) / sqrt(2)
-			Y[index_y(l,  m)] = ep * p   # p * exp( im*m*ϕ) / sqrt(2)
-		end
-	end
-
-	return Y
-end
-
-
-"""
-	cYlm_from_xz(L, x, z)
-
-Compute an entire set of real spherical harmonics ``Y_{l,m}(θ, φ)`` for
-``x = cos θ, z = sin φ`` where ``0 ≤ l ≤ L`` and ``-l ≤ m ≤ l``.
-"""
-function cYlm_from_cart(L::Integer, R::SVec3{T}) where {T}
-   r, x, z, s = compute_rxz(R)
-	P = zeros(T, sizeP(L))
-	coeff = compute_coefficients(L)
-	compute_p!(L, z, coeff, P)
-	Y = (ComplexF64, sizeY(L))
-	cYlm_from_cart!(Y, L, r, x, z, s, P)
-	return Y
-end
-
-
-
-
-# ------- Experimental
-
-
-function rYlm_from_cart!(Y, L, r, x, z, s, P)
-	@assert length(P) >= sizeP(L)
-	@assert length(Y) >= sizeY(L)
-   @assert abs(z) <= 1.0
-
-	SQRT2_DIV_2 = 0.5 * 1.41421356237309504880
-	INVSQRT2 = 1 / 1.41421356237309504880
-
-	for l = 0:L
-		Y[index_y(l, 0)] = P[index_p(l, 0)] * SQRT2_DIV_2
-	end
-
-   sig = 1
-   cosφ = x
-   sinφ = s * sqrt(1-x^2)
-   cosmφ = 1.0
-   sinmφ = 0.0
-	for m in 1:L
-		sig *= -1
-      # recursive formula for trigs
-      cosmφ, sinmφ = (cosmφ * cosφ - sinmφ * sinφ), (cosmφ * sinφ + sinmφ *  cosφ)
-		for l in m:L
-			p = P[index_p(l,m)]
-			Y[index_y(l, -m)] = sig * p * cosmφ
-			Y[index_y(l,  m)] =       p * sinmφ
-		end
-	end
-
-	return Y
-end
-
-
-
-
-
-	# ------ real spherical harmonics code ----------------
-	# NR2 5.5.4-5.5.5
-	# c1 = 1.0; c2 = cos(ϕ)
-	# s1 = 0.0; s2 = -sin(ϕ)
-	# tc = 2.0 * c2
-	# for m in 1:L
-	# 	s = tc * s1 - s2
-	# 	c = tc * c1 - c2
-	# 	s2 = s1
-	# 	s1 = s
-	# 	c2 = c1
-	# 	c1 = c
-	# 	for l in m:L
-	# 		Y[index_y(l, -m)] = P[index_p(l, m)] * s
-	# 		Y[index_y(l, m)] = P[index_p(l, m)] * c
-	# 	end
-	# end
-	# ------------------------------------------------------------
