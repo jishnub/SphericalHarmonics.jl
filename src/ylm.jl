@@ -160,6 +160,37 @@ function compute_y!(L::Integer, x::Real, ϕ::Real,P::Vector{<:Real},Y::Vector{<:
 end
 
 """
+	compute_y!(L, φ, P, Y)
+
+Compute an entire set of spherical harmonics ``Y_{l,m}(θ,φ)``
+using the given Associated Legendre Polynomials ``P_l^m(cos θ)``
+and store in array Y
+"""
+function compute_y!(L::Integer, ϕ::Real,P::Vector{<:Real},Y::Vector{<:Complex})
+
+	@assert length(P) >= sizeP(L)
+	@assert length(Y) >= sizeY(L)
+
+	@inbounds for l in 0:L
+		Y[index_y(l, 0)] = P[index_p(l, 0)] * 0.5 * √2
+	end
+
+	sig = 1
+	@inbounds for m in 1:L
+		sig *= -1
+		ep = cis(m*ϕ) / √2
+		em = sig * conj(ep)
+		@inbounds for l in m:L
+			p = P[index_p(l,m)]
+			Y[index_y(l, -m)] = em * p
+			Y[index_y(l,  m)] = ep * p
+		end
+	end
+
+	return Y
+end
+
+"""
 	compute_y!(L, x, φ, Y)
 
 Compute an entire set of spherical harmonics ``Y_{l,m}(θ,φ)``
