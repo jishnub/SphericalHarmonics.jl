@@ -4,6 +4,11 @@ const SVec3 = SVector{3}
 
 export compute_y, compute_y!, index_y, compute_p, compute_p!
 
+const ContiguousArrayLike{T,N} = 
+	Union{Array{T,N}, Base.FastContiguousSubArray{T,N,<:Array{T}}}
+
+const VectorLike{T} = ContiguousArrayLike{T,1}
+
 """
 	sizeP(maxDegree)
 
@@ -88,7 +93,9 @@ allocate_y(L::Integer) = zeros(ComplexF64,sizeY(L))
 Compute an entire set of Associated Legendre Polynomials ``P_l^m(x)``
 using the given coefficients, and store in the array P.
 """
-function compute_p!(L::Integer, x::Real, coeff::ALPCoefficients,P::Vector{<:Real})
+function compute_p!(L::Integer, x::Real, 
+	coeff::ALPCoefficients,P::VectorLike{<:Real})
+
 	@assert length(coeff.A) >= sizeP(L)
 	@assert length(coeff.B) >= sizeP(L)
 	@assert length(P) >= sizeP(L)
@@ -135,7 +142,8 @@ Compute an entire set of spherical harmonics ``Y_{l,m}(θ,φ)``
 using the given Associated Legendre Polynomials ``P_l^m(cos θ)``
 and store in array Y
 """
-function compute_y!(L::Integer, x::Real, ϕ::Real,P::Vector{<:Real},Y::Vector{<:Complex})
+function compute_y!(L::Integer, x::Real, ϕ::Real,
+	P::VectorLike{<:Real},Y::VectorLike{<:Complex})
 
 	@assert length(P) >= sizeP(L)
 	@assert length(Y) >= sizeY(L)
@@ -166,7 +174,8 @@ Compute an entire set of spherical harmonics ``Y_{l,m}(θ,φ)``
 using the given Associated Legendre Polynomials ``P_l^m(cos θ)``
 and store in array Y
 """
-function compute_y!(L::Integer, ϕ::Real,P::Vector{<:Real},Y::Vector{<:Complex})
+function compute_y!(L::Integer, ϕ::Real,
+	P::VectorLike{<:Real},Y::VectorLike{<:Complex})
 
 	@assert length(P) >= sizeP(L)
 	@assert length(Y) >= sizeY(L)
@@ -198,7 +207,8 @@ using the given Associated Legendre Polynomials ``P_l^m(cos θ)``,
 and store in array Y. 
 The Associated Legendre Polynomials are computed on the fly.
 """
-function compute_y!(L::Integer, x::Real, ϕ::Real,Y::Vector{<:Complex})
+function compute_y!(L::Integer, x::Real, ϕ::Real,
+	Y::VectorLike{<:Complex})
 
 	@assert length(Y) >= sizeY(L)
 
