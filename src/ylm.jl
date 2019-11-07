@@ -32,7 +32,9 @@ Return the index into a flat array of Associated Legendre Polynomials ``P_l^m``
 for the given indices ``(l,m)``.
 ``P_l^m`` are stored in l-major order i.e. [P(0,0), [P(1,0), P(1,1), P(2,0), ...]
 """
-index_p(l,m) = m + div(l*(l+1), 2) + 1
+index_p(l::Integer,m::Integer) = m + div(l*(l+1), 2) + 1
+index_p(l::Integer,m::AbstractUnitRange) = index_p(l,first(m)):index_p(l,last(m))
+index_p(l::Integer) = index_p(l,-l:l)
 
 """
 	index_y(l,m)
@@ -42,7 +44,9 @@ for the given indices ``(l,m)``.
 ``Y_{l,m}`` are stored in l-major order i.e.
 [Y(0,0), [Y(1,-1), Y(1,0), Y(1,1), Y(2,-2), ...]
 """
-index_y(l,m) = m + l + (l*l) + 1
+index_y(l::Integer,m::Integer) = m + l + (l*l) + 1
+index_y(l::Integer,m::AbstractUnitRange) = index_y(l,first(m)):index_y(l,last(m))
+index_y(l::Integer) = index_y(l,-l:l)
 
 """
 TODO: documentation
