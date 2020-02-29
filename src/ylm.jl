@@ -1,8 +1,13 @@
-using StaticArrays, LinearAlgebra
-
-const SVec3 = SVector{3}
+using LinearAlgebra
 
 export compute_y, compute_y!, index_y, compute_p, compute_p!
+
+export NorthPole
+export SouthPole
+
+abstract type Pole <: Real end
+struct NorthPole <: Pole end
+struct SouthPole <: Pole end
 
 const ContiguousArrayLike{T,N} = 
 	Union{Array{T,N}, Base.FastContiguousSubArray{T,N,<:Array{T}}}
@@ -32,9 +37,9 @@ Return the index into a flat array of Associated Legendre Polynomials ``P_l^m``
 for the given indices ``(l,m)``.
 ``P_l^m`` are stored in l-major order i.e. [P(0,0), [P(1,0), P(1,1), P(2,0), ...]
 """
-index_p(l::Integer,m::Integer) = m + div(l*(l+1), 2) + 1
-index_p(l::Integer,m::AbstractUnitRange) = index_p(l,first(m)):index_p(l,last(m))
-index_p(l::Integer) = index_p(l,-l:l)
+@inline index_p(l::Integer,m::Integer) = m + div(l*(l+1), 2) + 1
+@inline index_p(l::Integer,m::AbstractUnitRange) = index_p(l,first(m)):index_p(l,last(m))
+@inline index_p(l::Integer) = index_p(l,-l:l)
 
 """
 	index_y(l,m)
@@ -44,21 +49,20 @@ for the given indices ``(l,m)``.
 ``Y_{l,m}`` are stored in l-major order i.e.
 [Y(0,0), [Y(1,-1), Y(1,0), Y(1,1), Y(2,-2), ...]
 """
-index_y(l::Integer,m::Integer) = m + l + (l*l) + 1
-index_y(l::Integer,m::AbstractUnitRange) = index_y(l,first(m)):index_y(l,last(m))
-index_y(l::Integer) = index_y(l,-l:l)
+@inline index_y(l::Integer,m::Integer) = m + l + (l*l) + 1
+@inline index_y(l::Integer,m::AbstractUnitRange) = index_y(l,first(m)):index_y(l,last(m))
+@inline index_y(l::Integer) = index_y(l,-l:l)
 
 """
 TODO: documentation
 """
 struct ALPCoefficients
-	A::Array{Float64}
-	B::Array{Float64}
+	A::Vector{Float64}
+	B::Vector{Float64}
 end
 
 ALPCoefficients(maxDegree::Int) =
-	ALPCoefficients( zeros(sizeP(maxDegree)),
-						  zeros(sizeP(maxDegree)) )
+	ALPCoefficients( zeros(sizeP(maxDegree)), zeros(sizeP(maxDegree)) )
 
 """
 	compute_coefficients(L)
@@ -69,7 +73,7 @@ function compute_coefficients(L::Integer)
 	coeff = ALPCoefficients(L)
 	@inbounds for l in 2:L, m in 0:(l-2)
 
-		coeff.A[index_p(l, m)] = sqrt((4l^2 - 1.0) / (l^2 - m^2))
+		coeff.A[index_p(l, m)] = sqrt((4l^2 - 1) / (l^2 - m^2))
 		coeff.B[index_p(l, m)] = -sqrt(((l-1)^2 - m^2) / (4 * (l-1)^2 - 1))
 	end
 	return coeff
@@ -98,7 +102,7 @@ Compute an entire set of Associated Legendre Polynomials ``P_l^m(x)``
 using the given coefficients, and store in the array P.
 """
 function compute_p!(L::Integer, x::Real, 
-	coeff::ALPCoefficients,P::VectorLike{<:Real})
+	coeff::ALPCoefficients, P::VectorLike{<:Real})
 
 	@assert length(coeff.A) >= sizeP(L)
 	@assert length(coeff.B) >= sizeP(L)
@@ -126,6 +130,26 @@ function compute_p!(L::Integer, x::Real,
 	return P
 end
 
+function compute_p!(L::Integer, x::NorthPole, coeff::ALPCoefficients, P::VectorLike{<:Real})
+	@assert length(P) >= sizeP(L)
+	
+	fill!(P,zero(eltype(P)))
+	
+	for l in 0:L
+		P[index_p(l,0)] = √((2l+1)/(2π))
+	end
+end
+
+function compute_p!(L::Integer, x::SouthPole, coeff::ALPCoefficients, P::VectorLike{<:Real})
+	@assert length(P) >= sizeP(L)
+
+	fill!(P,zero(eltype(P)))
+	
+	for l in 0:L
+		P[index_p(l,0)] = (-1)^l * √((2l+1)/(2π))
+	end
+end
+
 """
 	compute_p(L, x)
 
@@ -139,33 +163,34 @@ function compute_p(L::Integer, x::Real)
 	return P
 end
 
+function compute_p(L::Integer, x::Pole)
+	P = allocate_p(L)
+	compute_p!(L, x, ALPCoefficients(0), P)
+	return P
+end
+
 """
 	compute_y!(L, x, φ, P, Y)
 
-Compute an entire set of spherical harmonics ``Y_{l,m}(θ,φ)``
-using the given Associated Legendre Polynomials ``P_l^m(cos θ)``
+Compute an entire set of spherical harmonics ``Y_{l,m}(θ=cos⁻¹x,φ)``
+using the given Associated Legendre Polynomials ``P_l^m(x)``
 and store in array Y
 """
 function compute_y!(L::Integer, x::Real, ϕ::Real,
 	P::VectorLike{<:Real},Y::VectorLike{<:Complex})
 
+	compute_y!(L,ϕ,P,Y)
+end
+
+function compute_y!(L::Integer, x::Pole, ϕ::Real,
+	P::VectorLike{<:Real},Y::VectorLike{<:Complex})
+
 	@assert length(P) >= sizeP(L)
 	@assert length(Y) >= sizeY(L)
 
+	fill!(Y,zero(eltype(Y)))
 	@inbounds for l in 0:L
 		Y[index_y(l, 0)] = P[index_p(l, 0)] * 0.5 * √2
-	end
-
-	sig = 1
-	@inbounds for m in 1:L
-		sig *= -1
-		ep = cis(m*ϕ) / √2
-		em = sig * conj(ep)
-		@inbounds for l in m:L
-			p = P[index_p(l,m)]
-			Y[index_y(l, -m)] = em * p
-			Y[index_y(l,  m)] = ep * p
-		end
 	end
 
 	return Y
@@ -218,23 +243,7 @@ function compute_y!(L::Integer, x::Real, ϕ::Real,
 
 	P = compute_p(L,x)
 
-	@inbounds for l in 0:L
-		Y[index_y(l, 0)] = P[index_p(l, 0)] * 0.5 * √2
-	end
-
-	sig = 1
-	@inbounds for m in 1:L
-		sig *= -1
-		ep = cis(m*ϕ) / √2
-		em = sig * conj(ep)
-		@inbounds for l in m:L
-			p = P[index_p(l,m)]
-			Y[index_y(l, -m)] = em * p
-			Y[index_y(l,  m)] = ep * p
-		end
-	end
-
-	return Y
+	compute_y!(L, x , ϕ, P, Y)
 end
 
 """
@@ -244,10 +253,15 @@ Compute an entire set of spherical harmonics ``Y_{l,m}(θ,φ)`` for
 ``x = cos θ`` where ``0 ≤ l ≤ L`` and ``-l ≤ m ≤ l``.
 """
 function compute_y(L::Integer, x::Real, ϕ::Real)
-	P = allocate_p(L)
-	coeff = compute_coefficients(L)
-	compute_p!(L, x, coeff, P)
+	P = compute_p(L, x)
 	Y = allocate_y(L)
 	compute_y!(L, x, ϕ, P, Y)
+	return Y
+end
+
+function compute_y(L::Integer, x::Pole)
+	P = compute_p(L, x)
+	Y = allocate_y(L)
+	compute_y!(L, x, 0, P, Y)
 	return Y
 end

@@ -1,6 +1,5 @@
-
 using SphericalHarmonics
-using Test, LinearAlgebra, StaticArrays, BenchmarkTools
+using Test
 
 @testset "SphericalHarmonics" begin
    include("test_ylm.jl")

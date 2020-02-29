@@ -34,3 +34,24 @@ end
 println()
 
 end # @testset
+
+@testset "Pole" begin
+   @testset "North pole" begin
+      @testset "Plm" begin
+         @test compute_p(10,1) ≈ compute_p(10,NorthPole())
+      end
+      @testset "Ylm" begin
+         @test compute_y(10,1,0) ≈ compute_y(10,NorthPole())
+         @test compute_y(10,1,0) ≈ compute_y(10,NorthPole(),π/2)
+      end
+   end
+   @testset "south pole" begin
+      @testset "Plm" begin
+         @test compute_p(10,-1) ≈ compute_p(10,SouthPole())
+      end
+      @testset "Ylm" begin
+         @test compute_y(10,-1,0) ≈ compute_y(10,SouthPole())
+         @test compute_y(10,-1,0) ≈ compute_y(10,SouthPole(),π/2)
+      end
+   end
+end
