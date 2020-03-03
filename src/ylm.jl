@@ -5,64 +5,9 @@ export compute_y, compute_y!, index_y, compute_p, compute_p!
 export NorthPole
 export SouthPole
 
-export Piby2 
-export Pi
-export ThreePiby2
-export TwoPi
-
 abstract type Pole <: Real end
 struct NorthPole <: Pole end
 struct SouthPole <: Pole end
-
-struct Piby2Multiple{N} <: Real end
-const Piby2 = Piby2Multiple{1}
-const Pi = Piby2Multiple{2}
-const ThreePiby2 = Piby2Multiple{3}
-const TwoPi = Piby2Multiple{0}
-
-# These obey modulo arithmetic
-function Base.:(*)(n::Integer,::Piby2)
-	nmod4 = mod(n,4)
-	if nmod4 == 0
-		res = TwoPi()
-	elseif nmod4 == 1
-		res = Piby2()
-	elseif nmod4 == 2
-		res = Pi()
-	elseif nmod4 == 3
-		res = ThreePiby2()
-	end
-	return res
-end
-Base.:(*)(x::Number,::Piby2) = x*π/2
-
-function Base.:(*)(n::Integer,::Pi)
-	nmod2 = mod(n,2)
-	if nmod2 == 0
-		res = TwoPi()
-	else
-		res = Pi()
-	end
-	return res
-end
-Base.:(*)(x::Number,::Pi) = x*π
-
-Base.:(*)(n::Integer,::ThreePiby2) = 3n*Piby2()
-Base.:(*)(x::Number,::ThreePiby2) = x*3π/2
-
-Base.:(*)(::Integer,::TwoPi) = TwoPi()
-Base.:(*)(x::Number,::TwoPi) = 2π*x
-
-Base.:(*)(p::Piby2Multiple,x::Number) = x*p
-
-# Returns exp(i π/2) = cos(π/2) + i*sin(π/2)
-@inline Base.cis(::Piby2) = one(ComplexF64)*im
-# Returns exp(i π) = cos(π) + i*sin(π)
-@inline Base.cis(::Pi) = -one(ComplexF64)
-# Returns exp(i 3π/2) = cos(3π/2) + i*sin(3π/2)
-@inline Base.cis(::ThreePiby2) = -one(ComplexF64)*im
-# Returns exp(i 2π) = cos(2π) + i*sin(2π)
-@inline Base.cis(::TwoPi) = one(ComplexF64)
 
 const ContiguousArrayLike{T,N} = 
 	Union{Array{T,N}, Base.FastContiguousSubArray{T,N,<:Array{T}}}
@@ -102,7 +47,7 @@ for the given indices ``(l,m)``.
 Return the index into a flat array of spherical harmonics ``Y_{l,m}``
 for the given indices ``(l,m)``.
 ``Y_{l,m}`` are stored in l-major order i.e.
-[Y(0,0), [Y(1,-1), Y(1,0), Y(1,1), Y(2,-2), ...]
+[Y(0,0), Y(1,-1), Y(1,0), Y(1,1), Y(2,-2), ...]
 """
 @inline index_y(l::Integer,m::Integer) = m + l + (l*l) + 1
 @inline index_y(l::Integer,m::AbstractUnitRange) = index_y(l,first(m)):index_y(l,last(m))
