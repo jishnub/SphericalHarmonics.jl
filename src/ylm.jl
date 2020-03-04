@@ -9,6 +9,12 @@ abstract type Pole <: Real end
 struct NorthPole <: Pole end
 struct SouthPole <: Pole end
 
+Base.cos(::NorthPole) = one(Float64)
+Base.cos(::SouthPole) = -one(Float64)
+Base.sin(::Pole) = zero(Float64)
+
+Base.one(::Type{<:Pole}) = one(Float64)
+
 const ContiguousArrayLike{T,N} = 
 	Union{Array{T,N}, Base.FastContiguousSubArray{T,N,<:Array{T}}}
 

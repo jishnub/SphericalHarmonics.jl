@@ -35,6 +35,10 @@ println()
 end # @testset
 
 @testset "Pole" begin
+   @testset "one" begin
+      @test one(NorthPole()) == 1       
+      @test one(SouthPole()) == 1       
+   end
    @testset "North pole" begin
       @testset "Plm" begin
          @test compute_p(10,1) ≈ compute_p(10,NorthPole())
@@ -43,6 +47,12 @@ end # @testset
          @test compute_y(10,1,0) ≈ compute_y(10,NorthPole())
          @test compute_y(10,1,0) ≈ compute_y(10,NorthPole(),π/2)
       end
+      @testset "trignometric functions" begin
+          @test cos(NorthPole()) == 1
+          @test sec(NorthPole()) == 1
+          @test sin(NorthPole()) == 0
+      end
+      
    end
    @testset "south pole" begin
       @testset "Plm" begin
@@ -51,6 +61,11 @@ end # @testset
       @testset "Ylm" begin
          @test compute_y(10,-1,0) ≈ compute_y(10,SouthPole())
          @test compute_y(10,-1,0) ≈ compute_y(10,SouthPole(),π/2)
+      end
+      @testset "trignometric functions" begin
+          @test cos(SouthPole()) == -1
+          @test sec(SouthPole()) == -1
+          @test sin(SouthPole()) == 0
       end
    end
 end
