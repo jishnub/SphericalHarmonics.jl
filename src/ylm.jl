@@ -19,8 +19,11 @@ Base.zero(::Type{<:Pole}) = zero(Float64)
 Base.promote_rule(::Type{<:Pole},::Type{Float64}) = Float64
 Base.promote_rule(::Type{<:Pole},T::Type{<:Real}) = promote_rule(Float64,T)
 
+# Return the value of θ corresponding to the poles
 Base.Float64(::SouthPole) = Float64(pi)
 Base.Float64(::NorthPole) = zero(Float64)
+
+Base.float(p::Pole) = Float64(p)
 
 """
 	sizeP(maxDegree)
