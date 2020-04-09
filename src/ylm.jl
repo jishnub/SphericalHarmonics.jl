@@ -14,11 +14,13 @@ Base.cos(::SouthPole) = -one(Float64)
 Base.sin(::Pole) = zero(Float64)
 
 Base.one(::Type{<:Pole}) = one(Float64)
+Base.zero(::Type{<:Pole}) = zero(Float64)
 
-const ContiguousArrayLike{T,N} = 
-	Union{Array{T,N}, Base.FastContiguousSubArray{T,N,<:Array{T}}}
+Base.promote_rule(::Type{<:Pole},::Type{Float64}) = Float64
+Base.promote_rule(::Type{<:Pole},T::Type{<:Real}) = promote_rule(Float64,T)
 
-const VectorLike{T} = ContiguousArrayLike{T,1}
+Base.Float64(::SouthPole) = Float64(pi)
+Base.Float64(::NorthPole) = zero(Float64)
 
 """
 	sizeP(maxDegree)
@@ -108,7 +110,7 @@ Compute an entire set of Associated Legendre Polynomials ``P_l^m(x)``
 using the given coefficients, and store in the array P.
 """
 function compute_p!(L::Integer, x::Real, 
-	coeff::ALPCoefficients, P::VectorLike{<:Real})
+	coeff::ALPCoefficients, P::AbstractVector{<:Real})
 
 	@assert length(coeff.A) >= sizeP(L)
 	@assert length(coeff.B) >= sizeP(L)
@@ -136,7 +138,7 @@ function compute_p!(L::Integer, x::Real,
 	return P
 end
 
-function compute_p!(L::Integer, x::NorthPole, coeff::ALPCoefficients, P::VectorLike{<:Real})
+function compute_p!(L::Integer, x::NorthPole, coeff::ALPCoefficients, P::AbstractVector{<:Real})
 	@assert length(P) >= sizeP(L)
 	
 	fill!(P,zero(eltype(P)))
@@ -146,7 +148,7 @@ function compute_p!(L::Integer, x::NorthPole, coeff::ALPCoefficients, P::VectorL
 	end
 end
 
-function compute_p!(L::Integer, x::SouthPole, coeff::ALPCoefficients, P::VectorLike{<:Real})
+function compute_p!(L::Integer, x::SouthPole, coeff::ALPCoefficients, P::AbstractVector{<:Real})
 	@assert length(P) >= sizeP(L)
 
 	fill!(P,zero(eltype(P)))
@@ -183,13 +185,13 @@ using the given Associated Legendre Polynomials ``P_l^m(x)``
 and store in array Y
 """
 function compute_y!(L::Integer, x::Real, ϕ::Real,
-	P::VectorLike{<:Real},Y::VectorLike{<:Complex})
+	P::AbstractVector{<:Real},Y::AbstractVector{<:Complex})
 
 	compute_y!(L,ϕ,P,Y)
 end
 
 function compute_y!(L::Integer, x::Pole, ϕ::Real,
-	P::VectorLike{<:Real},Y::VectorLike{<:Complex})
+	P::AbstractVector{<:Real},Y::AbstractVector{<:Complex})
 
 	@assert length(P) >= sizeP(L)
 	@assert length(Y) >= sizeY(L)
@@ -210,7 +212,7 @@ using the given Associated Legendre Polynomials ``P_l^m(cos θ)``
 and store in array Y
 """
 function compute_y!(L::Integer, ϕ::Real,
-	P::VectorLike{<:Real},Y::VectorLike{<:Complex})
+	P::AbstractVector{<:Real},Y::AbstractVector{<:Complex})
 
 	@assert length(P) >= sizeP(L)
 	@assert length(Y) >= sizeY(L)
@@ -243,7 +245,7 @@ and store in array Y.
 The Associated Legendre Polynomials are computed on the fly.
 """
 function compute_y!(L::Integer, x::Real, ϕ::Real,
-	Y::VectorLike{<:Complex})
+	Y::AbstractVector{<:Complex})
 
 	@assert length(Y) >= sizeY(L)
 
