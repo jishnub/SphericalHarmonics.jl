@@ -28,11 +28,12 @@ Base.cos(::NorthPole) = one(Float64)
 Base.cos(::SouthPole) = -one(Float64)
 Base.sin(::Pole) = zero(Float64)
 
-Base.one(::Type{<:Pole}) = one(Float64)
-Base.zero(::Type{<:Pole}) = zero(Float64)
+for DT in [:zero, :one]
+	@eval Base.$DT(::Type{<:Pole}) = $DT(Float64)
+	@eval Base.$DT(x::Pole) = $DT(typeof(x))
+end
 
-Base.promote_rule(::Type{<:Pole},::Type{Float64}) = Float64
-Base.promote_rule(::Type{<:Pole},T::Type{<:Real}) = promote_rule(Float64,T)
+Base.promote_rule(::Type{<:Pole}, T::Type{<:Real}) = promote_type(Float64, T)
 
 # Return the value of θ corresponding to the poles
 Base.Float64(::SouthPole) = Float64(pi)
@@ -40,21 +41,16 @@ Base.Float64(::NorthPole) = zero(Float64)
 
 Base.float(p::Pole) = Float64(p)
 
-sizeP(maxDegree::Integer) = sizeP(Int(maxDegree))
 sizeP(maxDegree::Int) = div((maxDegree + 1) * (maxDegree + 2), 2)
-
-sizeY(maxDegree::Integer) = sizeY(Int(maxDegree))
 sizeY(maxDegree::Int) = (maxDegree + 1) * (maxDegree + 1)
 
 index_p(l::Int, m::Int) = m + div(l*(l+1), 2) + 1
-index_p(l::Integer, m::Integer) = index_p(Int(l), Int(m))
-index_p(l::Integer, m::AbstractUnitRange) = index_p(l,first(m)):index_p(l,last(m))
-index_p(l::Integer) = index_p(l,-l:l)
+index_p(l::Integer, m::AbstractUnitRange{<:Integer}) = index_p(Int(l),Int(first(m))):index_p(Int(l),Int(last(m)))
+index_p(l::Integer) = index_p(l, ZeroTo(l))
 
 index_y(l::Int, m::Int) = m + l + l^2 + 1
-index_y(l::Integer, m::Integer) = index_y(Int(l), Int(m))
-index_y(l::Integer, m::AbstractUnitRange) = index_y(l,first(m)):index_y(l,last(m))
-index_y(l::Integer) = index_y(l,-l:l)
+index_y(l::Integer, m::AbstractUnitRange{<:Integer}) = index_y(Int(l),Int(first(m))):index_y(Int(l),Int(last(m)))
+index_y(l::Integer) = index_y(l, FullRange(l))
 
 """
 	SphericalHarmonics.compute_coefficients(L::Integer)
@@ -81,20 +77,22 @@ function compute_coefficients(L::Integer)
 end
 
 """
-	SphericalHarmonics.allocate_p(T::Type, L::Integer)
+	SphericalHarmonics.allocate_p([T::Type = Float64], L::Integer)
 
 Allocate an array large enough to store an entire set of Associated Legendre
 Polynomials ``\\bar{P}_l^m(x)`` of maximum degree ``L``.
 """
 allocate_p(T::Type, L::Integer) = SHVector{T}(undef, ML(ZeroTo(L), ZeroTo))
+allocate_p(L::Integer) = allocate_p(Float64, L)
 
 """
-	SphericalHarmonics.allocate_y(T::Type, L::Integer)
+	SphericalHarmonics.allocate_y([T::Type = ComplexF64], L::Integer)
 
 Allocate an array large enough to store an entire set of spherical harmonics
 ``Y_{l,m}(θ,φ)`` of maximum degree ``L``.
 """
 allocate_y(T::Type, L::Integer) = SHVector{T}(undef, ML(ZeroTo(L)))
+allocate_y(L::Integer) = allocate_y(ComplexF64, L)
 
 function checksize(sz, minsize)
 	@assert sz >= minsize "array needs to have a minimum size of $minsize, received size $sz"
@@ -203,28 +201,6 @@ function computePlmcostheta!(P::AbstractVector{R}, ::SouthPole, L::Integer) wher
 	return P
 end
 
-"""
-	computePlmcostheta(θ::Real; lmax::Integer)
-
-Compute an entire set of normalized Associated Legendre Polynomials ``\\bar{P}_l^m(cos(θ))`` where
-``0 ≤ l ≤ l_\\mathrm{max}`` and ``0 ≤ m ≤ l``. The polynomials are normalized as 
-
-```math
-\\bar{P}_{\\ell m} = \\sqrt{\\frac{(2\\ell + 1)(\\ell-m)!}{2\\pi (\\ell+m)!}} P_{\\ell m}.
-```
-
-Returns an `SHVector` that may be 
-indexed using `(l,m)` pairs aside from the canonical indexing with `Int`s.
-
-# Examples
-```jldoctest
-julia> computePlmcostheta(pi/2, 1)
-3-element SHArray(::Array{Float64,1}, (ML(0:1, 0:1),)):
-  0.3989422804014327
-  4.231083042742082e-17
- -0.4886025119029199
-```
-"""
 function computePlmcostheta(θ::THETA, L::Integer) where {THETA<:Real}
 	T = promote_type(float(typeof(L)), float(THETA))
 	P = allocate_p(T, L)
@@ -248,15 +224,46 @@ function computePlmx(x::X, L::Integer) where {X<:Real}
 	return P
 end
 
-computePlmcostheta(x::Real; lmax::Integer) = computePlmcostheta(x, lmax)
+"""
+	computePlmcostheta(θ::Real; lmax::Integer)
+
+Compute an entire set of normalized Associated Legendre Polynomials ``\\bar{P}_l^m(cos(θ))`` where
+``0 ≤ l ≤ l_\\mathrm{max}`` and ``0 ≤ m ≤ l`` for colatitude ``\\theta``. 
+
+The polynomials are normalized as 
+
+```math
+\\bar{P}_{\\ell m} = \\sqrt{\\frac{(2\\ell + 1)(\\ell-m)!}{2\\pi (\\ell+m)!}} P_{\\ell m}.
+```
+
+Returns an `SHVector` that may be 
+indexed using `(l,m)` pairs aside from the canonical indexing with `Int`s.
+
+# Examples
+```jldoctest
+julia> P = computePlmcostheta(pi/2, 1)
+3-element SHArray(::Array{Float64,1}, (ML(0:1, 0:1),)):
+  0.3989422804014327
+  4.231083042742082e-17
+ -0.4886025119029199
+
+julia> P[(0,0)]
+0.3989422804014327
+```
+"""
+computePlmcostheta(θ::Real; lmax::Integer) = computePlmcostheta(θ, lmax)
 
 """
-	computeYlm!(Y::AbstractVector{<:Complex}, P::AbstractVector{<:Real}, θ::Real, φ::Real, L::Integer)
+	computePlmx(x::Real; lmax::Integer)
 
-Compute an entire set of spherical harmonics ``Y_{l,m}(θ,φ)``
-using the precomputed associated Legendre Polynomials ``\\bar{P}_l^m(x = \\cos(θ))``,
-and store in the array `Y`. The array `P` may be computed using [`computePlmcostheta`](@ref).
+Compute an entire set of normalized Associated Legendre Polynomials ``\\bar{P}_l^m(x)`` where
+``0 ≤ l ≤ l_\\mathrm{max}`` and ``0 ≤ m ≤ l``.
+
+The argument `x` needs to lie in ``-1 ≤ x ≤ 1``. The function implicitly assumes that 
+``x = \\cos(\\theta)`` where ``0 ≤ \\theta ≤ π``.
 """
+computePlmx(x::Real; lmax::Integer) = computePlmx(x, lmax)
+
 function computeYlm!(Y::AbstractVector{<:Complex}, P::AbstractVector{<:Real}, θ::Pole, 
 	ϕ::Real, L::Integer)
 
@@ -274,6 +281,13 @@ function computeYlm!(Y::AbstractVector{<:Complex}, P::AbstractVector{<:Real}, θ
 	return Y
 end
 
+"""
+	computeYlm!(Y::AbstractVector{<:Complex}, P::AbstractVector{<:Real}, θ::Real, φ::Real, L::Integer)
+
+Compute an entire set of spherical harmonics ``Y_{l,m}(θ,φ)``
+using the precomputed associated Legendre Polynomials ``\\bar{P}_l^m(x = \\cos(θ))``,
+and store in the array `Y`. The array `P` may be computed using [`computePlmcostheta`](@ref).
+"""
 function computeYlm!(Y::AbstractVector{<:Complex}, P::AbstractVector{<:Real}, θ::Real,
 	ϕ::Real, L::Integer)
 
@@ -300,7 +314,7 @@ function computeYlm!(Y::AbstractVector{<:Complex}, P::AbstractVector{<:Real}, θ
 	return Y
 end
 
-function computeYlm!(Y::AbstractVector{<:Complex}, P::AbstractVector{<:Real}, θ::Pole, 
+function computeYlm!(Y::AbstractVector{<:Complex}, P::AbstractVector{<:Real}, θ::Real, 
 	ϕ::Real; lmax::Integer)
 
 	computeYlm!(Y, P, θ, ϕ, lmax)
@@ -313,7 +327,7 @@ Compute an entire set of spherical harmonics ``Y_{l,m}(θ,φ)`` for ``0 ≤ l �
 and store them in the array `Y`.
 """
 function computeYlm!(Y::AbstractVector{<:Complex}, θ::Real, ϕ::Real, L::Integer)
-	P = computePlmcostheta(L, θ)
+	P = computePlmcostheta(θ, L)
 	computeYlm!(Y, P, θ, ϕ, L)
 end
 
@@ -322,7 +336,7 @@ function computeYlm!(Y::SHVector{<:Complex}, θ::Real, ϕ::Real)
 	@inbounds computeYlm!(Y, θ, ϕ, L)
 end
 
-function computeYlm!(Y::AbstractVector{<:Complex}, θ::Real, φ::Real; lmax::Integer)
+function computeYlm!(Y::AbstractVector{<:Complex}, θ::Real, ϕ::Real; lmax::Integer)
 	computeYlm!(Y, θ, ϕ, lmax)
 end
 
@@ -335,8 +349,9 @@ end
 """
 	computeYlm(θ::Real, ϕ::Real; lmax::Integer)
 
-Compute an entire set of spherical harmonics ``Y_{l,m}(θ,φ)`` for 
-``0 ≤ l ≤ l_\\mathrm{max}`` and ``-l ≤ m ≤ l``.
+Compute an entire set of spherical harmonics ``Y_{l,m}(θ,ϕ)`` for 
+``0 ≤ l ≤ l_\\mathrm{max}`` and ``-l ≤ m ≤ l``, for colatitude ``\\theta`` and 
+azimuth ``\\phi``.
 
 Returns an `SHVector` that may be 
 indexed using `(l,m)` pairs aside from the canonical indexing with `Int`s.

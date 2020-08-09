@@ -1,9 +1,31 @@
 using SphericalHarmonics
 using Test
 
-import SphericalHarmonics: NorthPole, SouthPole
+import SphericalHarmonics: NorthPole, SouthPole, allocate_y, allocate_p
 
 @test isempty(Test.detect_ambiguities(Base, Core, SphericalHarmonics))
+
+@testset "allocate" begin
+    lmax = 4
+    @test size(allocate_y(lmax)) == size(allocate_y(ComplexF64, lmax))
+    @test eltype(allocate_y(Complex{BigFloat}, lmax)) == Complex{BigFloat}
+    
+    @test size(allocate_p(lmax)) == size(allocate_p(Float64, lmax))
+    @test eltype(allocate_p(BigFloat, lmax)) == BigFloat
+end
+
+@testset "indexing" begin
+    @testset "p" begin
+        ind1 = SphericalHarmonics.index_p(3, 0)
+        ind2 = SphericalHarmonics.index_p(3, 3)
+        @test SphericalHarmonics.index_p(3) == ind1:ind2
+    end
+    @testset "y" begin
+        ind1 = SphericalHarmonics.index_y(3, -3)
+        ind2 = SphericalHarmonics.index_y(3, 3)
+        @test SphericalHarmonics.index_y(3) == ind1:ind2
+    end
+end
 
 @testset "Ylm explicit" begin
 
@@ -46,14 +68,70 @@ import SphericalHarmonics: NorthPole, SouthPole
             @test Y ≈ Yex 
         end
     end
+end
 
-end # @testset
+@testset "computePlm!" begin
+    lmax = 4
+    θ = pi/3
+    coeff = SphericalHarmonics.compute_coefficients(lmax)
+    P = SphericalHarmonics.allocate_p(Float64, lmax)
+    computePlmcostheta!(P, θ, lmax, coeff)
+
+    @test P == computePlmcostheta(θ, lmax)
+
+    computePlmcostheta!(P, NorthPole(), lmax, coeff)
+    @test P == computePlmcostheta(NorthPole(), lmax)
+end
+
+@testset "computePlm" begin
+    θ = π/3
+    @test SphericalHarmonics.computePlmx(cos(θ), 4) ≈ computePlmcostheta(θ, 4)
+    @test SphericalHarmonics.computePlmx(cos(θ), lmax = 4) ≈ computePlmcostheta(θ, 4)
+    @test SphericalHarmonics.computePlmx(cos(θ), lmax = 4) ≈ computePlmcostheta(θ, lmax = 4)
+end
+
+@testset "computeYlm" begin
+    θ, ϕ = pi/3, pi/3
+    lmax = 4
+
+    @test SphericalHarmonics.computeYlm(θ, ϕ, lmax) == SphericalHarmonics.computeYlm(θ, ϕ, lmax = lmax)
+end
+
+@testset "computeYlm!" begin
+    θ, ϕ = pi/3, pi/3
+    lmax = 4
+    P = SphericalHarmonics.computePlmcostheta(θ, lmax)
+    Y1 = SphericalHarmonics.allocate_y(ComplexF64, lmax)
+    Y2 = SphericalHarmonics.allocate_y(ComplexF64, lmax)
+    SphericalHarmonics.computeYlm!(Y1, θ, ϕ, lmax)
+    SphericalHarmonics.computeYlm!(Y2, θ, ϕ)
+
+    @test Y1 ≈ Y2
+
+    SphericalHarmonics.computeYlm!(Y1, θ, ϕ; lmax = lmax)
+    @test Y1 ≈ Y2
+    
+    SphericalHarmonics.computeYlm!(Y1, P, θ, ϕ; lmax = lmax)
+    @test Y1 ≈ Y2
+end
 
 @testset "Pole" begin
-   @testset "one" begin
-      @test one(NorthPole()) == 1       
-      @test one(SouthPole()) == 1       
+   @testset "utils" begin
+      @test one(NorthPole()) == 1
+      @test one(SouthPole()) == 1
+      @test zero(NorthPole()) == 0
+      @test zero(SouthPole()) == 0
+      
+      @test float(NorthPole()) == 0
+      @test float(SouthPole()) == float(pi)
+      
+      @test Float64(NorthPole()) == 0
+      @test Float64(SouthPole()) == float(pi)
+
+      @test promote_rule(SouthPole, Float64) == Float64
+      @test promote_rule(SouthPole, BigFloat) == BigFloat
    end
+
    @testset "North pole" begin
       @testset "Plm" begin
          @test computePlmcostheta(0,10) ≈ computePlmcostheta(NorthPole(),10)
