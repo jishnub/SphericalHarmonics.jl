@@ -5,6 +5,12 @@ using SphericalHarmonicArrays
 
 export computeYlm, computeYlm!, computePlmcostheta, computePlmcostheta!
 
+Base.@irrational invsqrt2 0.7071067811865476 1/√(big(2))
+Base.@irrational invsqrt2pi 0.3989422804014327 1/√(2*big(pi))
+Base.@irrational sqrt3 1.7320508075688772 √(big(3))
+Base.@irrational sqrt3by4pi 0.4886025119029199 √(3/(4big(pi)))
+Base.@irrational sqrt3by2pi 0.690988298942671 √(3/(2big(pi)))
+
 """
 	SphericalHarmonics.Pole <: Real
 
@@ -58,17 +64,15 @@ index_y(l::Integer) = index_y(l, FullRange(l))
 Precompute coefficients ``a_l^m`` and ``b_l^m`` for all ``l ≤ L`` and ``0 ≤ m ≤ l``.
 """
 function compute_coefficients(L::Integer)
-	TL2 = typeof(L^2)
 	T = typeof(sqrt(L^2))
-	modesPlm = ML(ZeroTo(L), ZeroTo)
-	coeff = zeros(T, 2, length(modesPlm))
+	coeff = zeros(T, 2, sizeP(Int(L)))
 
 	@inbounds for l in 2:L
 
 		Bden = 1/√(4 * (l-1)^2 - 1)
 		
 		for m in 0:(l-2)
-			lmind = index_p(l, m)
+			lmind = index_p(Int(l), Int(m))
 			coeff[1, lmind] = √((4l^2 - 1) / (l^2 - m^2))
 			coeff[2, lmind] = -√((l-1)^2 - m^2) * Bden
 		end
@@ -99,13 +103,13 @@ function checksize(sz, minsize)
 end
 
 function _computePlmcostheta!(P, costheta, sintheta, L, coeff, ::Type{T}) where {T<:Real}
-	temp = 1/√(2 * T(π))
-	@inbounds P[index_p(0, 0)] = temp
+	@inbounds P[index_p(0, 0)] = invsqrt2pi
 
 	@inbounds if (L > 0)
-		P[index_p(1, 0)] = costheta * √(T(3)) * temp
-		temp = -√(T(3)/2) * sintheta * temp
-		P[index_p(1, 1)] = temp
+		P[index_p(1, 0)] = sqrt3by2pi * costheta
+		P11 = -sqrt3by4pi * sintheta
+		P[index_p(1, 1)] = P11
+		temp = T(P11)
 
 		for l in 2:Int(L)
 			for m in 0:(l-2)
@@ -264,15 +268,21 @@ The argument `x` needs to lie in ``-1 ≤ x ≤ 1``. The function implicitly ass
 """
 computePlmx(x::Real; lmax::Integer) = computePlmx(x, lmax)
 
-function computeYlm!(Y::AbstractVector{<:Complex}, P::AbstractVector{<:Real}, θ::Pole, 
-	ϕ::Real, L::Integer)
+abstract type HarmonicType end
+struct RealHarmonics <: HarmonicType end
+struct ComplexHarmonics <: HarmonicType end
+
+function computeYlm!(Y::AbstractVector, P::AbstractVector{R}, θ::Pole, 
+	ϕ::Real, L::Integer, SHtype::HarmonicType = ComplexHarmonics()) where {R<:Real}
 
 	checksize(length(P), sizeP(L))
 	checksize(length(Y), sizeY(L))
 
 	fill!(Y, zero(eltype(Y)))
 
-	norm = 1/√2
+	T = promote_type(Float64, R)
+
+	norm = 1/√(T(2))
 
 	@inbounds for l in ZeroTo(L)
 		Y[index_y(l, 0)] = P[index_p(l, 0)] * norm
@@ -281,73 +291,95 @@ function computeYlm!(Y::AbstractVector{<:Complex}, P::AbstractVector{<:Real}, θ
 	return Y
 end
 
+function phase(::RealHarmonics, m, ϕ, ::Any, ::Any)
+	S, C = sincos(m*ϕ)
+	ep = C
+	em = S
+	ep, em
+end
+
+function phase(::ComplexHarmonics, m, ϕ, norm, CSphase)
+	ep = cis(m*ϕ) * norm
+	em = CSphase * conj(ep)
+	ep, em
+end
+
 """
-	computeYlm!(Y::AbstractVector{<:Complex}, P::AbstractVector{<:Real}, θ::Real, φ::Real, L::Integer)
+	computeYlm!(Y::AbstractVector, P::AbstractVector{<:Real}, θ::Real, φ::Real, L::Integer, [SHtype = ComplexHarmonics()])
 
 Compute an entire set of spherical harmonics ``Y_{l,m}(θ,φ)``
 using the precomputed associated Legendre Polynomials ``\\bar{P}_l^m(x = \\cos(θ))``,
 and store in the array `Y`. The array `P` may be computed using [`computePlmcostheta`](@ref).
+
+The optional argument `SHtype` may be used to choose between real and complex harmonics.
+To compute real spherical harmonics, set this to `RealHarmonics()`.
 """
-function computeYlm!(Y::AbstractVector{<:Complex}, P::AbstractVector{<:Real}, θ::Real,
-	ϕ::Real, L::Integer)
+function computeYlm!(Y::AbstractVector, P::AbstractVector{R}, θ::Real,
+	ϕ::Real, L::Integer, SHtype::HarmonicType = ComplexHarmonics()) where {R<:Real}
 
 	checksize(length(P), sizeP(L))
 	checksize(length(Y), sizeY(L))
 
-	norm = 1/√2
-	for l in 0:L
-		Y[index_y(l, 0)] = P[index_p(l, 0)] * norm
+	T = promote_type(promote_type(R, Float64), typeof(ϕ))
+
+	for l in ZeroTo(L)
+		Y[index_y(l, 0)] = P[index_p(l, 0)] * invsqrt2
 	end
 
-	sig = 1
-	@inbounds for m in 1:L
-		sig *= -1
-		ep = cis(m*ϕ) * norm
-		em = sig * conj(ep)
-		for l in m:L
-			p = P[index_p(l, m)]
-			Y[index_y(l, -m)] = em * p
-			Y[index_y(l,  m)] = ep * p
+	CSphase = 1
+	@inbounds for m in 1:Int(L)
+		CSphase *= -1
+		phasempos, phasemneg = phase(SHtype, m, ϕ, invsqrt2, CSphase)
+
+		for l in m:Int(L)
+			Plm = P[index_p(l, m)]
+			Y[index_y(l, -m)] = phasemneg * Plm
+			Y[index_y(l,  m)] = phasempos * Plm
 		end
 	end
 
 	return Y
 end
 
-function computeYlm!(Y::AbstractVector{<:Complex}, P::AbstractVector{<:Real}, θ::Real, 
-	ϕ::Real; lmax::Integer)
+function computeYlm!(Y::AbstractVector, P::AbstractVector{<:Real}, θ::Real, 
+	ϕ::Real; lmax::Integer, SHtype::HarmonicType = ComplexHarmonics())
 
-	computeYlm!(Y, P, θ, ϕ, lmax)
+	computeYlm!(Y, P, θ, ϕ, lmax, SHtype)
+end
+
+function computeYlm!(Y::AbstractVector, θ::Real, ϕ::Real, L::Integer, 
+	SHtype::HarmonicType = ComplexHarmonics())
+	
+	P = computePlmcostheta(θ, L)
+	computeYlm!(Y, P, θ, ϕ, L, SHtype)
 end
 
 """
-	computeYlm!(Y::AbstractVector{<:Complex}, θ::Real, φ::Real; lmax::Integer)
+	computeYlm!(Y::AbstractVector{<:Complex}, θ::Real, φ::Real; lmax::Integer, [SHtype = ComplexHarmonics()])
 
 Compute an entire set of spherical harmonics ``Y_{l,m}(θ,φ)`` for ``0 ≤ l ≤ l_\\mathrm{max}``,
 and store them in the array `Y`.
+
+The optional argument `SHtype` may be used to choose between real and complex harmonics.
+To compute real spherical harmonics, set this to `RealHarmonics()`.
 """
-function computeYlm!(Y::AbstractVector{<:Complex}, θ::Real, ϕ::Real, L::Integer)
-	P = computePlmcostheta(θ, L)
-	computeYlm!(Y, P, θ, ϕ, L)
+function computeYlm!(Y::AbstractVector, θ::Real, ϕ::Real; lmax::Integer, 
+	SHtype::HarmonicType = ComplexHarmonics())
+	computeYlm!(Y, θ, ϕ, lmax, SHtype)
 end
 
-function computeYlm!(Y::SHVector{<:Complex}, θ::Real, ϕ::Real)
-	L = last(l_range(first(SphericalHarmonicArrays.shmodes(Y))))
-	@inbounds computeYlm!(Y, θ, ϕ, L)
-end
+eltypeY(::Type{R}, ::ComplexHarmonics) where {R} = Complex{R}
+eltypeY(::Type{R}, ::RealHarmonics) where {R} = R
 
-function computeYlm!(Y::AbstractVector{<:Complex}, θ::Real, ϕ::Real; lmax::Integer)
-	computeYlm!(Y, θ, ϕ, lmax)
-end
-
-function _computeYlm(P, θ, ϕ, L)
-	Y = allocate_y(Complex{promote_type(eltype(P), typeof(ϕ))}, L)
-	computeYlm!(Y, P, θ, ϕ, L)
+function _computeYlm(P, θ, ϕ, L, SHtype)
+	T = eltypeY(promote_type(eltype(P), typeof(ϕ)), SHtype)
+	Y = allocate_y(T, L)
+	computeYlm!(Y, P, θ, ϕ, L, SHtype)
 	return Y
 end
 
 """
-	computeYlm(θ::Real, ϕ::Real; lmax::Integer)
+	computeYlm(θ::Real, ϕ::Real; lmax::Integer, [SHtype = ComplexHarmonics()])
 
 Compute an entire set of spherical harmonics ``Y_{l,m}(θ,ϕ)`` for 
 ``0 ≤ l ≤ l_\\mathrm{max}`` and ``-l ≤ m ≤ l``, for colatitude ``\\theta`` and 
@@ -356,7 +388,8 @@ azimuth ``\\phi``.
 Returns an `SHVector` that may be 
 indexed using `(l,m)` pairs aside from the canonical indexing with `Int`s.
 
-The precision of the result is set as a combination of the types of all the arguments.
+The optional argument `SHtype` may be used to choose between real and complex harmonics.
+To compute real spherical harmonics, set this to `RealHarmonics()`.
 
 # Examples
 ```jldoctest
@@ -372,10 +405,10 @@ julia> Y[(1,-1)] # l = 1, m = -1
 
 julia> Y = computeYlm(big(pi)/2, 0, 1) # Arbitrary precision
 4-element SHArray(::Array{Complex{BigFloat},1}, (ML(0:1, -1:1),)):
-    0.2820947917738781184660094048589327597216759680130934754730145983228317949194716 + 0.0im
-    0.3454941494713354486367877668779846612877814388031855602538601251440676669552971 - 0.0im
- 2.679783085063171430659542774823417668417011548855617520042112930055124837543658e-78 + 0.0im
-   -0.3454941494713354486367877668779846612877814388031855602538601251440676669552971 - 0.0im
+    0.2820947917738781434740397257803862929220253146644994284220428608553212342207478 + 0.0im
+    0.3454941494713354800004725866746756805800203549224377345215348347601343937267067 - 0.0im
+ 2.679783085063171668225419916118067917387251852939708540164955895366691604430101e-78 + 0.0im
+   -0.3454941494713354800004725866746756805800203549224377345215348347601343937267067 - 0.0im
 
 julia> computeYlm(SphericalHarmonics.NorthPole(), 0, 1)
 4-element SHArray(::Array{Complex{Float64},1}, (ML(0:1, -1:1),)):
@@ -385,19 +418,27 @@ julia> computeYlm(SphericalHarmonics.NorthPole(), 0, 1)
                  0.0 + 0.0im 
 ```
 """
-function computeYlm(θ::THETA, ϕ::PHI, L::I) where {THETA<:Real,PHI<:Real,I<:Integer}
-	YT = promote_type(promote_type(THETA, PHI), float(I))
-	P = computePlmcostheta(YT(θ), L)
-	Y = _computeYlm(P, θ, ϕ, L)
+function computeYlm(θ::THETA, ϕ::PHI, L::I, 
+	SHtype::HarmonicType = ComplexHarmonics()) where {THETA<:Real,PHI<:Real,I<:Integer}
+	T = promote_type(promote_type(THETA, PHI), float(I))
+	P = computePlmcostheta(T(θ), L)
+	Y = _computeYlm(P, θ, T(ϕ), L, SHtype)
 	return Y
 end
-function computeYlm(θ::Pole, ϕ::Real, L::Integer)
-	P = computePlmcostheta(θ, L)
-	Y = _computeYlm(P, θ, ϕ, L)
-	return Y
-end
-computeYlm(θ::Pole, L::Integer) = computeYlm(θ, 0, L)
 
-computeYlm(θ::Real, ϕ::Real; lmax::Integer) = computeYlm(θ, ϕ, lmax)
+function computeYlm(θ::Pole, ϕ::Real, L::Integer,
+	SHtype::HarmonicType = ComplexHarmonics())
+	P = computePlmcostheta(θ, L)
+	Y = _computeYlm(P, θ, ϕ, L, SHtype)
+	return Y
+end
+
+function computeYlm(θ::Pole, L::Integer, SHtype::HarmonicType = ComplexHarmonics())
+	computeYlm(θ, 0, L, SHtype)
+end
+
+function computeYlm(θ::Real, ϕ::Real; lmax::Integer, SHtype::HarmonicType = ComplexHarmonics())
+	computeYlm(θ, ϕ, lmax, SHtype)
+end
 
 end

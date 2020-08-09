@@ -9,6 +9,7 @@ import SphericalHarmonics: NorthPole, SouthPole, allocate_y, allocate_p
     lmax = 4
     @test size(allocate_y(lmax)) == size(allocate_y(ComplexF64, lmax))
     @test eltype(allocate_y(Complex{BigFloat}, lmax)) == Complex{BigFloat}
+    @test eltype(allocate_y(BigFloat, lmax)) == BigFloat
     
     @test size(allocate_p(lmax)) == size(allocate_p(Float64, lmax))
     @test eltype(allocate_p(BigFloat, lmax)) == BigFloat
@@ -29,7 +30,7 @@ end
 
 @testset "Ylm explicit" begin
 
-    function explicit_shs(θ, φ)
+    function explicit_shs_complex(θ, φ)
         Y00 = 0.5 * sqrt(1/π)
         Y1m1 = 0.5 * sqrt(3/(2*π))*sin(θ)*exp(-im*φ)
         Y10 = 0.5 * sqrt(3/π)*cos(θ)
@@ -50,22 +51,61 @@ end
                Y3m3, Y3m2, Y3m1, Y30, Y31, Y32, Y33]
     end
 
-    for θ in LinRange(0, π, 100), ϕ in LinRange(0, 2π, 200)
-        Y = computeYlm(θ, ϕ, 3)
-        Yex = explicit_shs(θ, ϕ)
-        @test Y ≈ Yex
+    @testset "complex harmonics" begin
+        
+        for θ in LinRange(0, π, 100), ϕ in LinRange(0, 2π, 200)
+            Y = computeYlm(θ, ϕ, 3)
+            Yex = explicit_shs_complex(θ, ϕ)
+            @test Y ≈ Yex
+        end
     end
 
+    @testset "real harmonics" begin
+        function explicit_shs_real(θ, φ)
+            Y00 = 0.5 * sqrt(1/π)
+            Y1m1 = -0.5 * sqrt(3/π)*sin(θ)*sin(φ)
+            Y10 = 0.5 * sqrt(3/π)*cos(θ)
+            Y11 = -0.5 * sqrt(3/π)*sin(θ)*cos(φ)
+            Y2m2 = 0.25 * sqrt(15/π)*sin(θ)^2*sin(2*φ)
+            Y2m1 = -0.5 * sqrt(15/π)*sin(θ)*cos(θ)*sin(φ)
+            Y20 = 0.25 * sqrt(5/π)*(3*cos(θ)^2 - 1)
+            Y21 = -0.5 * sqrt(15/π)*sin(θ)*cos(θ)*cos(φ)
+            Y22 = 0.25 * sqrt(15/π)*sin(θ)^2*cos(2*φ)
+            Y3m3 = -1/8 * sin(3 * φ) * sqrt(2*35/π) * sin(θ)^3
+            Y3m2 = 1/4 * sin(2 * φ) * sqrt(105/π) * cos(θ) * sin(θ)^2
+            Y3m1 = -1/8 * sin(φ) * sqrt(2*21/π) * (-1 + 5 * cos(θ)^2) * sin(θ)
+            Y30 = 1/4 * sqrt(7/π) * (-3 * cos(θ) + 5 * cos(θ)^3)
+            Y31 = -(1/8) * cos(φ) * sqrt(2*21/π) * (-1 + 5 * cos(θ)^2) * sin(θ)
+            Y32 = 1/4 * cos(2 * φ) * sqrt(105/π) * cos(θ) * sin(θ)^2
+            Y33 = -(1/8) * cos(3 * φ) * sqrt(2*35/π) * sin(θ)^3
+            return [Y00, Y1m1, Y10, Y11, Y2m2, Y2m1, Y20, Y21, Y22,
+                   Y3m3, Y3m2, Y3m1, Y30, Y31, Y32, Y33]
+        end
+
+        for θ in LinRange(0, π, 100), ϕ in LinRange(0, 2π, 100)
+            Y = computeYlm(θ, ϕ, 3, SphericalHarmonics.RealHarmonics())
+            Yex = explicit_shs_real(θ, ϕ)
+            @test Y ≈ Yex
+        end
+    end
+    
     @testset "Pole" begin
         @testset "NorthPole" begin
             Y = computeYlm(NorthPole(), 3)
-            Yex = explicit_shs(0, 0)
+            Yex = explicit_shs_complex(0, 0)
             @test Y ≈ Yex
         end
         @testset "SouthPole" begin
             Y = computeYlm(SouthPole(), 3)
-            Yex = explicit_shs(π, 0)
+            Yex = explicit_shs_complex(π, 0)
             @test Y ≈ Yex 
+        end
+        @testset "RealHarmonics == ComplexHarmonics" begin
+            for x in (NorthPole(), SouthPole())
+                YC = computeYlm(x, 4, SphericalHarmonics.ComplexHarmonics())
+                YR = computeYlm(x, 4, SphericalHarmonics.RealHarmonics())
+                @test YC == YR
+            end
         end
     end
 end
@@ -102,10 +142,9 @@ end
     lmax = 4
     P = SphericalHarmonics.computePlmcostheta(θ, lmax)
     Y1 = SphericalHarmonics.allocate_y(ComplexF64, lmax)
-    Y2 = SphericalHarmonics.allocate_y(ComplexF64, lmax)
+    Y2 = SphericalHarmonics.computeYlm(θ, ϕ, lmax)
+    
     SphericalHarmonics.computeYlm!(Y1, θ, ϕ, lmax)
-    SphericalHarmonics.computeYlm!(Y2, θ, ϕ)
-
     @test Y1 ≈ Y2
 
     SphericalHarmonics.computeYlm!(Y1, θ, ϕ; lmax = lmax)
