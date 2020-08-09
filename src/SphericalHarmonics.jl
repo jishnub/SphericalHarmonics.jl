@@ -7,7 +7,6 @@ export computeYlm, computeYlm!, computePlmcostheta, computePlmcostheta!
 
 Base.@irrational invsqrt2 0.7071067811865476 1/√(big(2))
 Base.@irrational invsqrt2pi 0.3989422804014327 1/√(2*big(pi))
-Base.@irrational sqrt3 1.7320508075688772 √(big(3))
 Base.@irrational sqrt3by4pi 0.4886025119029199 √(3/(4big(pi)))
 Base.@irrational sqrt3by2pi 0.690988298942671 √(3/(2big(pi)))
 
@@ -181,7 +180,7 @@ function computePlmcostheta!(P::AbstractVector{R}, ::NorthPole, L::Integer) wher
 
 	T = promote_type(promote_type(Float64, R), float(typeof(L)))
 
-	norm = 1/√(2 * T(π))
+	norm = T(invsqrt2pi)
 
 	for l in ZeroTo(L)
 		P[index_p(l, 0)] = norm * √(T(2l + 1))
@@ -196,7 +195,7 @@ function computePlmcostheta!(P::AbstractVector{R}, ::SouthPole, L::Integer) wher
 
 	T = promote_type(promote_type(Float64, R), float(typeof(L)))
 
-	norm = -1/√(2 * T(π))
+	norm = -T(invsqrt2pi)
 	
 	for l in ZeroTo(L)
 		norm *= -1
@@ -280,12 +279,8 @@ function computeYlm!(Y::AbstractVector, P::AbstractVector{R}, θ::Pole,
 
 	fill!(Y, zero(eltype(Y)))
 
-	T = promote_type(Float64, R)
-
-	norm = 1/√(T(2))
-
-	@inbounds for l in ZeroTo(L)
-		Y[index_y(l, 0)] = P[index_p(l, 0)] * norm
+	for l in ZeroTo(L)
+		Y[index_y(l, 0)] = P[index_p(l, 0)] * invsqrt2
 	end
 
 	return Y
@@ -319,8 +314,6 @@ function computeYlm!(Y::AbstractVector, P::AbstractVector{R}, θ::Real,
 
 	checksize(length(P), sizeP(L))
 	checksize(length(Y), sizeY(L))
-
-	T = promote_type(promote_type(R, Float64), typeof(ϕ))
 
 	for l in ZeroTo(L)
 		Y[index_y(l, 0)] = P[index_p(l, 0)] * invsqrt2
@@ -395,13 +388,13 @@ To compute real spherical harmonics, set this to `RealHarmonics()`.
 ```jldoctest
 julia> Y = computeYlm(pi/2, 0, 1)
 4-element SHArray(::Array{Complex{Float64},1}, (ML(0:1, -1:1),)):
-   0.28209479177387814 + 0.0im
-   0.34549414947133544 - 0.0im
- 2.991827511286337e-17 + 0.0im
-  -0.34549414947133544 - 0.0im
+     0.2820947917738782 + 0.0im
+     0.3454941494713355 - 0.0im
+ 2.9918275112863375e-17 + 0.0im
+    -0.3454941494713355 - 0.0im
 
-julia> Y[(1,-1)] # l = 1, m = -1
-0.34549414947133544 - 0.0im
+julia> Y[(1,-1)]
+0.3454941494713355 - 0.0im
 
 julia> Y = computeYlm(big(pi)/2, 0, 1) # Arbitrary precision
 4-element SHArray(::Array{Complex{BigFloat},1}, (ML(0:1, -1:1),)):
@@ -412,10 +405,10 @@ julia> Y = computeYlm(big(pi)/2, 0, 1) # Arbitrary precision
 
 julia> computeYlm(SphericalHarmonics.NorthPole(), 0, 1)
 4-element SHArray(::Array{Complex{Float64},1}, (ML(0:1, -1:1),)):
- 0.28209479177387814 + 0.0im
-                 0.0 + 0.0im
-  0.4886025119029199 + 0.0im
-                 0.0 + 0.0im 
+ 0.2820947917738782 + 0.0im
+                0.0 + 0.0im
+   0.48860251190292 + 0.0im
+                0.0 + 0.0im
 ```
 """
 function computeYlm(θ::THETA, ϕ::PHI, L::I, 
