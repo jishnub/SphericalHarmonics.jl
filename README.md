@@ -11,7 +11,7 @@ For a full description of the code, please see:
 
 # Quick start
 
-The normalized associated Legendre polynomials for an angle `θ` for all `l` in `0 <= l <= lmax` and all m `-l <= m <= l` may be generated using the signature `computePlm(θ; lmax)`, eg.
+The normalized associated Legendre polynomials for an angle `θ` for all `l` in `0 <= l <= lmax` and all `m` in `-l <= m <= l` may be generated using the signature `computePlm(θ; lmax)`, eg.
 
 ```julia
 julia> P = computePlmcostheta(pi/2, lmax = 1)
