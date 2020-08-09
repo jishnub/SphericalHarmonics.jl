@@ -1,8 +1,8 @@
 # Spherical Harmonics
 
 [![Build Status](https://travis-ci.com/jishnub/SphericalHarmonics.jl.svg?branch=master)](https://travis-ci.com/jishnub/SphericalHarmonics.jl)
-[![Build Status](https://ci.appveyor.com/api/projects/status/github/jishnub/SphericalHarmonics.jl?svg=true)](https://ci.appveyor.com/project/jishnub/SphericalHarmonicModes-jl)
-[![Coverage Status](https://coveralls.io/repos/github/jishnub/SphericalHarmonics.jl/badge.svg?branch=master)](https://coveralls.io/github/jishnub/SphericalHarmonics.jl?branch=master)
+[![Build Status](https://ci.appveyor.com/api/projects/status/github/jishnub/SphericalHarmonics.jl?svg=true)](https://ci.appveyor.com/project/jishnub/SphericalHarmonics-jl)
+[![codecov](https://codecov.io/gh/jishnub/SphericalHarmonics.jl/branch/master/graph/badge.svg)](https://codecov.io/gh/jishnub/SphericalHarmonics.jl)
 [![Dev](https://img.shields.io/badge/docs-dev-blue.svg)](https://jishnub.github.io/SphericalHarmonics.jl/dev)
 
 For a full description of the code, please see:
