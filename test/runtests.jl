@@ -10,7 +10,7 @@ import SphericalHarmonics: NorthPole, SouthPole, allocate_y, allocate_p
     @test size(allocate_y(lmax)) == size(allocate_y(ComplexF64, lmax))
     @test eltype(allocate_y(Complex{BigFloat}, lmax)) == Complex{BigFloat}
     @test eltype(allocate_y(BigFloat, lmax)) == BigFloat
-    
+
     @test size(allocate_p(lmax)) == size(allocate_p(Float64, lmax))
     @test eltype(allocate_p(BigFloat, lmax)) == BigFloat
 end
@@ -199,4 +199,52 @@ end
           @test sin(SouthPole()) == 0
       end
    end
+end
+
+@testset "accuracy" begin
+
+    @testset "lmax 1000" begin
+        lmax = 1000
+
+        coeff1 = SphericalHarmonics.compute_coefficients(big(lmax))
+        coeff2 = SphericalHarmonics.compute_coefficients(lmax)
+
+        Y1 = SphericalHarmonics.allocate_y(Complex{BigFloat}, lmax)
+        Y2 = SphericalHarmonics.allocate_y(Complex{Float64}, lmax)
+
+        P1 = SphericalHarmonics.allocate_p(BigFloat, lmax)
+        P2 = SphericalHarmonics.allocate_p(Float64, lmax)
+        
+        for θ in LinRange(0, big(pi), 10)
+            computePlmcostheta!(P1, θ, lmax, coeff1)
+            computePlmcostheta!(P2, Float64(θ), lmax, coeff2)
+            for ϕ in LinRange(0, 2big(pi), 10)
+                computeYlm!(Y1, P1, θ, ϕ, lmax)
+                computeYlm!(Y2, P2, Float64(θ), Float64(ϕ), lmax)
+                @test all(isapprox.(ComplexF64.(Y1), Y2, atol=1e-11,  rtol=1e-11))
+            end
+        end
+    end
+    @testset "lmax 100" begin
+        lmax = 100
+
+        coeff1 = SphericalHarmonics.compute_coefficients(big(lmax))
+        coeff2 = SphericalHarmonics.compute_coefficients(lmax)
+
+        Y1 = SphericalHarmonics.allocate_y(Complex{BigFloat}, lmax)
+        Y2 = SphericalHarmonics.allocate_y(Complex{Float64}, lmax)
+
+        P1 = SphericalHarmonics.allocate_p(BigFloat, lmax)
+        P2 = SphericalHarmonics.allocate_p(Float64, lmax)
+        
+        for θ in LinRange(0, big(pi), 10)
+            computePlmcostheta!(P1, θ, lmax, coeff1)
+            computePlmcostheta!(P2, Float64(θ), lmax, coeff2)
+            for ϕ in LinRange(0, 2big(pi), 10)
+                computeYlm!(Y1, P1, θ, ϕ, lmax)
+                computeYlm!(Y2, P2, Float64(θ), Float64(ϕ), lmax)
+                @test all(isapprox.(ComplexF64.(Y1), Y2, atol=1e-13,  rtol=1e-13))
+            end
+        end 
+    end
 end
