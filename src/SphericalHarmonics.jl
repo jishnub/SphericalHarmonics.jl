@@ -60,7 +60,7 @@ index_p(l::Integer) = index_p(l, ZeroTo(l))
 
 index_y(l::Int, m::Int, m_range::Type{FullRange} = FullRange) = m + l + l^2 + 1
 index_y(l::Int, m::Int, ::Type{ZeroTo}) = index_p(l, m)
-function index_y(l::Integer, m::AbstractUnitRange{<:Integer}, m_range)
+function index_y(l::Integer, m::AbstractUnitRange{<:Integer}, m_range = FullRange)
 	index_y(Int(l),Int(first(m)),m_range):index_y(Int(l),Int(last(m)),m_range)
 end
 index_y(l::Integer) = index_y(l, FullRange(l), FullRange)
