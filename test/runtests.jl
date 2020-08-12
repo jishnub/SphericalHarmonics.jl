@@ -278,6 +278,20 @@ end
 
 @testset "accuracy" begin
 
+    @testset "θ = pi/2" begin
+        P = computePlmcostheta(big(pi)/2, lmax = big(10))
+        @test P[(1,1)] ≈ -(√(3/big(pi)))/2
+        @test P[(2,2)] ≈ (√(15/big(pi)))/4
+        @test P[(3,3)] ≈ -(√(35/(2big(pi))))/4
+        @test P[(4,4)] ≈ (√(35/big(pi)))*3/16
+        @test P[(5,5)] ≈ -(√(77/(2big(pi))))*3/16
+        @test P[(6,6)] ≈ (√(3003/(2big(pi))))/32
+        @test P[(7,7)] ≈ -(√(715/big(pi)))*3/64
+        @test P[(8,8)] ≈ (√(12155/big(pi)))*3/256
+        @test P[(9,9)] ≈ -(√(230945/(2big(pi))))/256
+        @test P[(10,10)] ≈ (√(969969/(2big(pi))))/512
+    end
+
     @testset "lmax 1000" begin
         lmax = 1000
 
