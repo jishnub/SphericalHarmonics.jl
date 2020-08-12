@@ -49,10 +49,8 @@ Base.float(p::Pole) = Float64(p)
 const SHMRange = Union{Type{FullRange}, Type{ZeroTo}}
 
 sizeP(maxDegree::Int) = div((maxDegree + 1) * (maxDegree + 2), 2)
-sizeP(maxDegree::Integer) = sizeP(Int(maxDegree))
 sizeY(maxDegree::Int, m_range::Type{FullRange} = FullRange) = (maxDegree + 1) * (maxDegree + 1)
 sizeY(maxDegree::Int, ::Type{ZeroTo}) = sizeP(maxDegree)
-sizeY(maxDegree::Integer, m_range) = sizeY(Int(maxDegree), m_range)
 
 index_p(l::Int, m::Int) = m + div(l*(l+1), 2) + 1
 function index_p(l::Integer, m::AbstractUnitRange{<:Integer})
@@ -145,8 +143,8 @@ The argument `x` needs to lie in ``-1 ≤ x ≤ 1``. The function implicitly ass
 """
 function computePlmx!(P::AbstractVector{<:Real}, x::THETA, L::Integer, coeff::AbstractMatrix) where {THETA<:Real}
 
-	checksize(size(coeff, 2), sizeP(L))
-	checksize(length(P), sizeP(L))
+	checksize(size(coeff, 2), sizeP(Int(L)))
+	checksize(length(P), sizeP(Int(L)))
 
 	-1 <= x <= 1 || throw(ArgumentError("x needs to lie in [-1,1]"))
 
@@ -167,8 +165,8 @@ using [`compute_coefficients`](@ref).
 """
 function computePlmcostheta!(P::AbstractVector{<:Real}, θ::THETA, L::Integer, coeff::AbstractMatrix) where {THETA<:Real}
 
-	checksize(size(coeff, 2), sizeP(L))
-	checksize(length(P), sizeP(L))
+	checksize(size(coeff, 2), sizeP(Int(L)))
+	checksize(length(P), sizeP(Int(L)))
 
 	T = promote_type(Float64, promote_type(THETA, eltype(coeff)))
 
@@ -184,7 +182,7 @@ function computePlmcostheta!(P::AbstractVector{<:Real}, θ::Pole, L::Integer, co
 end
 
 function computePlmcostheta!(P::AbstractVector{R}, ::NorthPole, L::Integer) where {R<:Real}
-	checksize(length(P), sizeP(L))
+	checksize(length(P), sizeP(Int(L)))
 	
 	fill!(P, zero(R))
 
@@ -199,7 +197,7 @@ function computePlmcostheta!(P::AbstractVector{R}, ::NorthPole, L::Integer) wher
 end
 
 function computePlmcostheta!(P::AbstractVector{R}, ::SouthPole, L::Integer) where {R<:Real}
-	checksize(length(P), sizeP(L))
+	checksize(length(P), sizeP(Int(L)))
 	
 	fill!(P, zero(R))
 
@@ -294,7 +292,7 @@ function computeYlm!(Y::AbstractVector, P::AbstractVector{R}, θ::Pole,
 	ϕ::Real, L::Integer, m_range::SHMRange = FullRange, 
 	SHType::HarmonicType = ComplexHarmonics()) where {R<:Real}
 
-	checksize(length(P), sizeP(L))
+	checksize(length(P), sizeP(Int(L)))
 	checksize(length(Y), sizeY(L, m_range))
 
 	fill!(Y, zero(eltype(Y)))
@@ -365,8 +363,8 @@ To compute real spherical harmonics, set this to `RealHarmonics()`.
 function computeYlm!(Y::AbstractVector, P::AbstractVector{R}, θ::Real,
 	ϕ::Real, L::Integer, m_range::SHMRange = FullRange, SHType::HarmonicType = ComplexHarmonics()) where {R<:Real}
 
-	checksize(length(P), sizeP(L))
-	checksize(length(Y), sizeY(L, m_range))
+	checksize(length(P), sizeP(Int(L)))
+	checksize(length(Y), sizeY(Int(L), m_range))
 
 	for l in ZeroTo(L)
 		Y[index_y(l, 0, m_range)] = P[index_p(l, 0)] * invsqrt2

@@ -218,58 +218,62 @@ end
 end
 
 @testset "Pole" begin
-   @testset "utils" begin
-      @test one(NorthPole()) == 1
-      @test one(SouthPole()) == 1
-      @test zero(NorthPole()) == 0
-      @test zero(SouthPole()) == 0
-      
-      @test float(NorthPole()) == 0
-      @test float(SouthPole()) == float(pi)
-      
-      @test Float64(NorthPole()) == 0
-      @test Float64(SouthPole()) == float(pi)
+    @testset "utils" begin
+        @test one(NorthPole()) == 1
+        @test one(SouthPole()) == 1
+        @test zero(NorthPole()) == 0
+        @test zero(SouthPole()) == 0
 
-      @test promote_rule(SouthPole, Float64) == Float64
-      @test promote_rule(SouthPole, BigFloat) == BigFloat
-   end
+        @test float(NorthPole()) == 0
+        @test float(SouthPole()) == float(pi)
 
-   @testset "North pole" begin
-      @testset "Plm" begin
-         @test computePlmcostheta(0,10) ≈ computePlmcostheta(NorthPole(),10)
-      end
-      @testset "Ylm" begin
-         @test computeYlm(0,0,10) ≈ computeYlm(NorthPole(),10)
-         @test computeYlm(0,0,10) ≈ computeYlm(NorthPole(),π/2,10)
-         @test computeYlm(0,0,10,ZeroTo) ≈ computeYlm(NorthPole(),10,ZeroTo)
-         @test computeYlm(0,0,10,ZeroTo) ≈ computeYlm(NorthPole(),π/2,10,ZeroTo)
-         @test computeYlm(0,0,10,ZeroTo,RealHarmonics()) ≈ computeYlm(NorthPole(),10,ZeroTo,RealHarmonics())
-         @test computeYlm(0,0,10,ZeroTo,RealHarmonics()) ≈ computeYlm(NorthPole(),π/2,10,ZeroTo,RealHarmonics())
-      end
-      @testset "trignometric functions" begin
-          @test cos(NorthPole()) == 1
-          @test sec(NorthPole()) == 1
-          @test sin(NorthPole()) == 0
-      end
+        @test Float64(NorthPole()) == 0
+        @test Float64(SouthPole()) == float(pi)
+
+        @test promote_rule(SouthPole, Float64) == Float64
+        @test promote_rule(SouthPole, BigFloat) == BigFloat
+    end
+
+    @testset "North pole" begin
+        @testset "Plm" begin
+            @test computePlmcostheta(0,10) ≈ computePlmcostheta(NorthPole(),10)
+        end
+        @testset "Ylm" begin
+            Y0 = computeYlm(0,0,10,ZeroTo)
+            Y0R = computeYlm(0,0,10,ZeroTo,RealHarmonics())
+            Y1 = computeYlm(0,0,10)
+            @test Y1 ≈ computeYlm(NorthPole(),10)
+            @test Y1 ≈ computeYlm(NorthPole(),lmax = 10)
+            @test Y1 ≈ computeYlm(NorthPole(),π/2,10)
+            @test Y0 ≈ computeYlm(NorthPole(),10,ZeroTo)
+            @test Y0 ≈ computeYlm(NorthPole(),π/2,10,ZeroTo)
+            @test Y0R ≈ computeYlm(NorthPole(),10,ZeroTo,RealHarmonics())
+            @test Y0R ≈ computeYlm(NorthPole(),π/2,10,ZeroTo,RealHarmonics())
+        end
+        @testset "trignometric functions" begin
+            @test cos(NorthPole()) == 1
+            @test sec(NorthPole()) == 1
+            @test sin(NorthPole()) == 0
+        end
    end
    @testset "south pole" begin
-      @testset "Plm" begin
-         @test computePlmcostheta(π,10) ≈ computePlmcostheta(SouthPole(),10)
-      end
-      @testset "Ylm" begin
-         @test computeYlm(π,0,10) ≈ computeYlm(SouthPole(),10)
-         @test computeYlm(π,0,10) ≈ computeYlm(SouthPole(),π/2,10)
-         @test computeYlm(π,0,10,ZeroTo) ≈ computeYlm(SouthPole(),10,ZeroTo)
-         @test computeYlm(π,0,10,ZeroTo) ≈ computeYlm(SouthPole(),π/2,10,ZeroTo)
-         @test computeYlm(π,0,10,ZeroTo,RealHarmonics()) ≈ computeYlm(SouthPole(),10,ZeroTo,RealHarmonics())
-         @test computeYlm(π,0,10,ZeroTo,RealHarmonics()) ≈ computeYlm(SouthPole(),π/2,10,ZeroTo,RealHarmonics())
-      end
-      @testset "trignometric functions" begin
-          @test cos(SouthPole()) == -1
-          @test sec(SouthPole()) == -1
-          @test sin(SouthPole()) == 0
-      end
-   end
+        @testset "Plm" begin
+            @test computePlmcostheta(π,10) ≈ computePlmcostheta(SouthPole(),10)
+        end
+        @testset "Ylm" begin
+            @test computeYlm(π,0,10) ≈ computeYlm(SouthPole(),10)
+            @test computeYlm(π,0,10) ≈ computeYlm(SouthPole(),π/2,10)
+            @test computeYlm(π,0,10,ZeroTo) ≈ computeYlm(SouthPole(),10,ZeroTo)
+            @test computeYlm(π,0,10,ZeroTo) ≈ computeYlm(SouthPole(),π/2,10,ZeroTo)
+            @test computeYlm(π,0,10,ZeroTo,RealHarmonics()) ≈ computeYlm(SouthPole(),10,ZeroTo,RealHarmonics())
+            @test computeYlm(π,0,10,ZeroTo,RealHarmonics()) ≈ computeYlm(SouthPole(),π/2,10,ZeroTo,RealHarmonics())
+        end
+        @testset "trignometric functions" begin
+            @test cos(SouthPole()) == -1
+            @test sec(SouthPole()) == -1
+            @test sin(SouthPole()) == 0
+        end
+    end
 end
 
 @testset "accuracy" begin

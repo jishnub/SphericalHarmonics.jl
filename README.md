@@ -55,9 +55,34 @@ true
 
 Special angles `SphericalHarmonics.NorthPole()` and `SphericalHarmonics.SouthPole()` may be passed as `θ` to use efficient algorithms.
 
+## Increased precision
+
+Arguments of `BigInt` and `BigFloat` types would increase the precision of the result.
+
+```julia
+julia> Y = computeYlm(big(pi)/2, big(0), lmax = big(1)) # Arbitrary precision
+4-element SHArray(::Array{Complex{BigFloat},1}, (ML(0:1, -1:1),)):
+    0.2820947917738781434740397257803862929220253146644994284220428608553212342207478 + 0.0im
+    0.3454941494713354792652446460318896831393773703262433134867073548945156550201567 - 0.0im
+ 2.679783085063171668225419916118067917387251852939708540164955895366691604430101e-78 + 0.0im
+   -0.3454941494713354792652446460318896831393773703262433134867073548945156550201567 - 0.0im
+```
+
+## Semi-positive harmonics
+
+For real functions it might be sufficient to compute only the functions for `m >= 0`. These may be computed by passing the flag `m_range = SphericalHarmonics.ZeroTo`.
+
+```julia
+julia> computeYlm(pi/3, 0, lmax = 1, m_range = SphericalHarmonics.ZeroTo)
+3-element SHArray(::Array{Complex{Float64},1}, (ML(0:1, 0:1),)):
+  0.2820947917738782 + 0.0im
+ 0.24430125595146002 + 0.0im
+ -0.2992067103010745 - 0.0im
+```
+
 ## Real harmonics
 
-It's also possible to compute real spherical harmonics by passing the flag `SHType` as `SphericalHarmonics.RealHarmonics()`, eg.
+It's also possible to compute real spherical harmonics by passing the flag `SHType = SphericalHarmonics.RealHarmonics()`, eg.
 
 ```julia
 julia> Y = computeYlm(pi/3, pi/3, lmax = 1, SHType = SphericalHarmonics.RealHarmonics())
