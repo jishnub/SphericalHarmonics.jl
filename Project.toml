@@ -1,6 +1,6 @@
 name = "SphericalHarmonics"
 uuid = "c489a379-e885-57ff-9236-bd896d33c250"
-version = "0.1.0"
+version = "0.1.1"
 
 [deps]
 SphericalHarmonicArrays = "9dd28c12-4719-4e7d-b634-e7b733a6d046"
@@ -12,8 +12,8 @@ SphericalHarmonicModes = "0.4"
 julia = "1"
 
 [extras]
-SphericalHarmonicModes = "0e9554e2-b38b-11e9-16d7-9d9abfec665a"
+HCubature = "19dc6840-f33b-545b-b366-655c7e3ffd49"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [targets]
-test = ["SphericalHarmonicModes","Test"]
+test = ["HCubature", "Test"]

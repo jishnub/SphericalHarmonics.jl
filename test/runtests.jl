@@ -1,10 +1,9 @@
 using SphericalHarmonics
 using SphericalHarmonicModes
 using Test
+using HCubature
 
 import SphericalHarmonics: NorthPole, SouthPole, allocate_y, allocate_p, RealHarmonics, ComplexHarmonics
-
-@test isempty(Test.detect_ambiguities(Base, Core, SphericalHarmonics))
 
 @testset "allocate" begin
     lmax = 4
@@ -156,7 +155,7 @@ end
 end
 
 @testset "computePlm!" begin
-    lmax = 4
+    lmax = 10
     θ = pi/3
     coeff = SphericalHarmonics.compute_coefficients(lmax)
     P = SphericalHarmonics.allocate_p(Float64, lmax)
@@ -166,6 +165,21 @@ end
 
     computePlmcostheta!(P, NorthPole(), lmax, coeff)
     @test P == computePlmcostheta(NorthPole(), lmax)
+
+    @testset "single m" begin
+        P2 = SphericalHarmonics.allocate_p(Float64, lmax)
+        computePlmcostheta!(P, θ, lmax, coeff)
+
+        for l in 0:lmax, m in 0:l
+            computePlmcostheta!(P2, θ, l, m, coeff)
+            for l2 in m:l
+                @test P2[(l2,m)] == P[(l2,m)]
+            end
+        end
+
+        @test_throws ArgumentError computePlmcostheta!(P2, θ, 2, 3, coeff)
+        @test_throws ArgumentError computePlmcostheta!(P2, θ, 2, -1, coeff)
+    end
 end
 
 @testset "computePlmx and computePlmcostheta" begin
@@ -174,11 +188,16 @@ end
     @test SphericalHarmonics.computePlmx(cos(θ), lmax = 4) ≈ computePlmcostheta(θ, 4)
     @test SphericalHarmonics.computePlmx(cos(θ), 4) ≈ computePlmcostheta(θ, lmax = 4)
     @test SphericalHarmonics.computePlmx(cos(θ), lmax = 4) ≈ computePlmcostheta(θ, lmax = 4)
+    
+    @test SphericalHarmonics.computePlmx(cos(θ), 4, 2) ≈ computePlmcostheta(θ, 4, 2)
+    @test SphericalHarmonics.computePlmx(cos(θ), lmax = 4, m = 2) ≈ computePlmcostheta(θ, 4, 2)
+    @test SphericalHarmonics.computePlmx(cos(θ), 4, 2) ≈ computePlmcostheta(θ, lmax = 4, m = 2)
+    @test SphericalHarmonics.computePlmx(cos(θ), lmax = 4, m = 2) ≈ computePlmcostheta(θ, lmax = 4, m = 2)
 end
 
 @testset "computeYlm kwargs" begin
     θ, ϕ = pi/3, pi/3
-    lmax = 4
+    lmax = 10
 
     Y1 = SphericalHarmonics.computeYlm(θ, ϕ, lmax)
     Y2 = SphericalHarmonics.computeYlm(θ, ϕ, lmax = lmax)
@@ -186,10 +205,25 @@ end
     Y4 = SphericalHarmonics.computeYlm(θ, ϕ, lmax = lmax, m_range = FullRange, SHType = SphericalHarmonics.ComplexHarmonics())
     @test Y1 == Y2 == Y3 == Y4
 
+    for m = -lmax:lmax
+        Y1 = SphericalHarmonics.computeYlm(θ, ϕ, lmax, m)
+        Y2 = SphericalHarmonics.computeYlm(θ, ϕ, lmax = lmax, m = m)
+        Y3 = SphericalHarmonics.computeYlm(θ, ϕ, lmax = lmax, m = m, m_range = FullRange)
+        Y4 = SphericalHarmonics.computeYlm(θ, ϕ, lmax = lmax, m = m, m_range = FullRange, SHType = SphericalHarmonics.ComplexHarmonics())
+        @test Y1 == Y2 == Y3 == Y4
+    end
+
     Y1 = SphericalHarmonics.computeYlm(θ, ϕ, lmax, ZeroTo)
     Y2 = SphericalHarmonics.computeYlm(θ, ϕ, lmax = lmax, m_range = ZeroTo)
     Y3 = SphericalHarmonics.computeYlm(θ, ϕ, lmax = lmax, m_range = ZeroTo, SHType = SphericalHarmonics.ComplexHarmonics())
     @test Y1 == Y2 == Y3
+    
+    for m in 0:lmax
+        Y1 = SphericalHarmonics.computeYlm(θ, ϕ, lmax, m, ZeroTo)
+        Y2 = SphericalHarmonics.computeYlm(θ, ϕ, lmax = lmax, m = m, m_range = ZeroTo)
+        Y3 = SphericalHarmonics.computeYlm(θ, ϕ, lmax = lmax, m = m, m_range = ZeroTo, SHType = SphericalHarmonics.ComplexHarmonics())
+        @test Y1 == Y2 == Y3
+    end
 
     Y1 = SphericalHarmonics.computeYlm(θ, ϕ, lmax, ZeroTo, SphericalHarmonics.RealHarmonics())
     Y2 = SphericalHarmonics.computeYlm(θ, ϕ, lmax = lmax, m_range = ZeroTo, SHType = SphericalHarmonics.RealHarmonics())
@@ -198,7 +232,7 @@ end
 
 @testset "computeYlm!" begin
     θ, ϕ = pi/3, pi/3
-    lmax = 4
+    lmax = 10
     P = SphericalHarmonics.computePlmcostheta(θ, lmax)
     Y1 = SphericalHarmonics.allocate_y(ComplexF64, lmax)
     Y2 = SphericalHarmonics.computeYlm(θ, ϕ, lmax)
@@ -215,6 +249,21 @@ end
     SphericalHarmonics.computeYlm!(Y1, θ, ϕ, lmax, ZeroTo)
     Y2 = SphericalHarmonics.computeYlm(θ, ϕ, lmax, ZeroTo)
     @test Y1[1:length(ML(ZeroTo(lmax),ZeroTo))] ≈ Y2
+
+    @testset "single m" begin
+        Y2 = SphericalHarmonics.computeYlm(θ, ϕ, lmax)
+        Ym = SphericalHarmonics.allocate_y(ComplexF64, lmax)
+
+        for l in 0:lmax, m in 0:l
+            computeYlm!(Ym, P, θ, ϕ, l, m)
+            for l2 in m:l
+                @test Ym[(l2,m)] == Y2[(l2,m)]
+            end
+        end
+
+        @test_throws ArgumentError computeYlm!(Ym, P, θ, ϕ, 2, 3)
+        @test_throws ArgumentError computeYlm!(Ym, P, θ, ϕ, 2, -3)
+    end
 end
 
 @testset "Pole" begin
@@ -335,5 +384,125 @@ end
                 @test all(isapprox.(ComplexF64.(Y1), Y2, atol=1e-13,  rtol=1e-13))
             end
         end 
+    end
+end
+
+@testset "orthonormality" begin
+
+    @testset "Associated Legendre Polynomials" begin
+        function testnorm(f)
+            I, E = hcubature(f, [0], [π]);
+            @test I ≈ 1/π
+        end
+        function testortho(f)
+            I, E = hcubature(f, [0], [π], atol=1e-10);
+            @test isapprox(abs(I), 0, atol = max(abs(E), 1e-10))
+        end
+        
+        @testset "Normalization" begin
+            lmax = 10
+            coeff = SphericalHarmonics.compute_coefficients(lmax)
+            P = SphericalHarmonics.allocate_p(lmax)
+
+            function f!(x, P, l, m)
+                θ = x[1]
+                computePlmcostheta!(P, θ, l, m, coeff)
+                sin(θ) * P[(l,m)]^2
+            end
+
+            for m = 0:lmax, l = m:lmax
+                testnorm(x -> f!(x, P, l, m))
+            end
+        end
+
+        @testset "Orthogonality" begin
+            lmax = 10
+            coeff = SphericalHarmonics.compute_coefficients(lmax)
+            P = SphericalHarmonics.allocate_p(lmax)
+
+            @testset "same m, different l" begin
+                function f!(x, P, k, l, m)
+                    θ = x[1]
+                    computePlmcostheta!(P, θ, max(k, l), m, coeff)
+                    sin(θ) * P[(k,m)] * P[(l,m)]
+                end
+                
+                for m = 0:lmax, l = m:lmax, k = m:lmax
+                    k == l && continue
+                    testortho(x -> f!(x, P, k, l, m))
+                end
+            end
+
+            @testset "same l, different m" begin
+                function f!(x, P, l, m1, m2)
+                    θ = x[1]
+                    computePlmcostheta!(P, θ, l, coeff)
+                    P[(l,m1)] * P[(l,m2)] / sin(θ)
+                end
+                
+                for l = 0:lmax, m1 in 0:l, m2 in m1+1:l
+                    testortho(x -> f!(x, P, l, m1, m2))
+                end
+            end
+        end
+    end
+
+    @testset "SphericalHarmonics" begin
+        function testnorm(f)
+            I, E = hcubature(f, [0, 0], [π, 2π]);
+            @test all(x->isapprox(x, 1), I)
+        end
+        function testortho(f)
+            I, E = hcubature(f, [0, 0], [π, 2π], atol=1e-10);
+            @test isapprox(abs(I), 0, atol = max(abs(E), 1e-10))
+        end
+
+        @testset "Normalization" begin
+            lmax = 10
+            @testset "Complex harmonics" begin
+                f(θϕ) = sin(θϕ[1]) .* abs2.(computeYlm(θϕ[1], θϕ[2], lmax = lmax))
+                testnorm(f)
+            end
+            @testset "Real harmonics" begin
+                f(θϕ) = sin(θϕ[1]) .* abs2.(computeYlm(θϕ[1], θϕ[2], lmax = lmax, SHType = SphericalHarmonics.RealHarmonics()))
+                testnorm(f)
+            end
+        end
+        @testset "Orthogonality" begin
+            lmax = 3
+            coeff = SphericalHarmonics.compute_coefficients(lmax)
+
+            @testset "Complex harmonics" begin
+                Y = SphericalHarmonics.allocate_y(lmax)
+                P = SphericalHarmonics.allocate_p(lmax)
+
+                function f!(θϕ, Y, P, l, m1, m2)
+                    θ, ϕ = θϕ
+                    computePlmcostheta!(P, θ, l, coeff)
+                    computeYlm!(Y, P, θ, ϕ, l)
+                    sin(θ) * Y[(l,m1)] * conj(Y[(l,m2)])
+                end
+
+                for l in 0:lmax, m1 in -l:0, m2 in m1+1:l
+                    testortho(x->f!(x, Y, P, l, m1, m2))
+                end
+            end
+
+            @testset "Real harmonics" begin
+                Y = SphericalHarmonics.allocate_y(Float64, lmax)
+                P = SphericalHarmonics.allocate_p(lmax)
+
+                function f!(θϕ, Y, P, l, m1, m2)
+                    θ, ϕ = θϕ
+                    computePlmcostheta!(P, θ, l, coeff)
+                    computeYlm!(Y, P, θ, ϕ, l, SphericalHarmonicModes.FullRange, SphericalHarmonics.RealHarmonics())
+                    sin(θ) * Y[(l,m1)] * Y[(l,m2)]
+                end
+
+                for l in 0:lmax, m1 in -l:0, m2 in m1+1:l
+                    testortho(x->f!(x, Y, P, l, m1, m2))
+                end
+            end
+        end
     end
 end
