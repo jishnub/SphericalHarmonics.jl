@@ -399,10 +399,8 @@ struct RealHarmonics <: HarmonicType end
 struct ComplexHarmonics <: HarmonicType end
 
 function phase(::RealHarmonics, ::Type{FullRange}, m, ϕ, ::Any, ::Any)
-	S, C = sincos(Int(m)*ϕ)
-	ep = C
-	em = S
-	ep, em
+	S, C = sincos(abs(Int(m))*ϕ)
+	C, S
 end
 
 function phase(::ComplexHarmonics, ::Type{FullRange}, m, ϕ, norm, CSphase)
@@ -443,7 +441,7 @@ function fill_m_maybenegm!(Y, P, L, m, ϕ, CSphase, ::Type{ZeroTo}, SHType)
 	return Y
 end
 
-function fill_m!(Y, P, L, m, ϕ, CSphase, ::Type{FullRange}, SHType)
+function fill_m!(Y, P, L, m, ϕ, CSphase, ::Type{FullRange}, SHType::ComplexHarmonics)
 	phasempos, phasemneg = phase(SHType, FullRange, m, ϕ, _invsqrt2, CSphase)
 
 	for l in abs(Int(m)):Int(L)
@@ -451,7 +449,21 @@ function fill_m!(Y, P, L, m, ϕ, CSphase, ::Type{FullRange}, SHType)
 		if m >= 0 
 			Y[index_y(l, m)] = phasempos * Plm
 		else
-			Y[index_y(l, m)] = phasemneg * Plm
+			Y[index_y(l, m)] = (-1)^m * phasempos * Plm
+		end
+	end
+	return Y
+end
+
+function fill_m!(Y, P, L, m, ϕ, CSphase, ::Type{FullRange}, SHType::RealHarmonics)
+	C, S = phase(SHType, FullRange, m, ϕ, _invsqrt2, CSphase)
+
+	for l in abs(Int(m)):Int(L)
+		Plm = P[index_p(l, abs(m))]
+		if m >= 0 
+			Y[index_y(l, m)] = C * Plm
+		else
+			Y[index_y(l, m)] = S * Plm
 		end
 	end
 	return Y
@@ -467,7 +479,6 @@ function fill_m!(Y, P, L, m, ϕ, CSphase, ::Type{ZeroTo}, SHType)
 	end
 	return Y
 end
-
 
 function computeYlm_maybeallm!(Y, P, ϕ, L, ::Nothing, m_range, SHType)
 	for l in ZeroTo(L)
@@ -493,6 +504,9 @@ function computeYlm_maybeallm!(Y, P, ϕ, L, m::Integer, m_range, SHType)
 	end
 	return Y
 end
+
+_maybeabs(::Nothing) = nothing
+_maybeabs(m::Integer) = abs(m)
 
 """
 	computeYlm!(Y::AbstractVector, P::AbstractVector{<:Real}, θ::Real, ϕ::Real; lmax::Integer, [m::Integer], [m_range = SphericalHarmonics.FullRange], [SHType = SphericalHarmonics.ComplexHarmonics()])
@@ -535,37 +549,6 @@ function computeYlm!(Y::AbstractVector, P::AbstractVector{<:Real}, θ::Real,
 	computeYlm!(Y, P, θ, ϕ, lmax, m, m_range, SHType)
 end
 
-"""
-	computeYlm!(Y::AbstractVector, θ::Real, ϕ::Real; lmax::Integer, [m::Integer] [m_range = SphericalHarmonics.FullRange], [SHType = SphericalHarmonics.ComplexHarmonics()])
-
-Compute an entire set of spherical harmonics ``Y_{l,m}(θ,ϕ)`` for ``0 ≤ l ≤ l_\\mathrm{max}``,
-and store them in the array `Y`.
-
-The optional argument `m_range` decides if the spherical harmonics for negative `m` values are computed. 
-By default the functions for all values of `m` are evaluated. Setting `m_range` to `SphericalHarmonics.ZeroTo` would result 
-in only functions for `m ≥ 0` being evaluated. Providing ``m`` would override this, in which case only the polynomials 
-corresponding to the azimuthal order ``m`` would be computed.
-
-The optional argument `SHType` may be used to choose between real and complex harmonics.
-To compute real spherical harmonics, set this to `SphericalHarmonics.RealHarmonics()`.
-"""
-function computeYlm!(Y::AbstractVector, θ::Real, ϕ::Real, L::Integer, m::Union{Integer,Nothing} = nothing,
-	m_range::SHMRange = FullRange, SHType::HarmonicType = ComplexHarmonics())
-	
-	P = computePlmcostheta(θ, L, m)
-	computeYlm!(Y, P, θ, ϕ, L, m, m_range, SHType)
-end
-function computeYlm!(Y::AbstractVector, θ::Real, ϕ::Real, L::Integer, m_range::SHMRange, 
-	SHType::HarmonicType = ComplexHarmonics())
-	
-	computeYlm!(Y, θ, ϕ, L, nothing, m_range, SHType)
-end
-
-function computeYlm!(Y::AbstractVector, θ::Real, ϕ::Real; lmax::Integer, m::Union{Integer,Nothing} = nothing,
-	m_range::SHMRange = FullRange, SHType::HarmonicType = ComplexHarmonics())
-	computeYlm!(Y, θ, ϕ, lmax, m, m_range, SHType)
-end
-
 function computeYlm!(Y::AbstractVector, P::AbstractVector{<:Real}, θ::Pole, 
 	ϕ::Real, L::Integer, m_range::SHMRange = FullRange, 
 	SHType::HarmonicType = ComplexHarmonics())
@@ -592,6 +575,37 @@ function computeYlm!(Y::AbstractVector, P::AbstractVector{<:Real}, θ::Pole,
 	computeYlm!(Y, P, θ, ϕ, L, m_range, SHType)
 
 	return Y
+end
+
+"""
+	computeYlm!(Y::AbstractVector, θ::Real, ϕ::Real; lmax::Integer, [m::Integer] [m_range = SphericalHarmonics.FullRange], [SHType = SphericalHarmonics.ComplexHarmonics()])
+
+Compute an entire set of spherical harmonics ``Y_{l,m}(θ,ϕ)`` for ``0 ≤ l ≤ l_\\mathrm{max}``,
+and store them in the array `Y`.
+
+The optional argument `m_range` decides if the spherical harmonics for negative `m` values are computed. 
+By default the functions for all values of `m` are evaluated. Setting `m_range` to `SphericalHarmonics.ZeroTo` would result 
+in only functions for `m ≥ 0` being evaluated. Providing ``m`` would override this, in which case only the polynomials 
+corresponding to the azimuthal order ``m`` would be computed.
+
+The optional argument `SHType` may be used to choose between real and complex harmonics.
+To compute real spherical harmonics, set this to `SphericalHarmonics.RealHarmonics()`.
+"""
+function computeYlm!(Y::AbstractVector, θ::Real, ϕ::Real, L::Integer, m::Union{Integer,Nothing} = nothing,
+	m_range::SHMRange = FullRange, SHType::HarmonicType = ComplexHarmonics())
+	
+	P = computePlmcostheta(θ, L, _maybeabs(m))
+	computeYlm!(Y, P, θ, ϕ, L, m, m_range, SHType)
+end
+function computeYlm!(Y::AbstractVector, θ::Real, ϕ::Real, L::Integer, m_range::SHMRange, 
+	SHType::HarmonicType = ComplexHarmonics())
+	
+	computeYlm!(Y, θ, ϕ, L, nothing, m_range, SHType)
+end
+
+function computeYlm!(Y::AbstractVector, θ::Real, ϕ::Real; lmax::Integer, m::Union{Integer,Nothing} = nothing,
+	m_range::SHMRange = FullRange, SHType::HarmonicType = ComplexHarmonics())
+	computeYlm!(Y, θ, ϕ, lmax, m, m_range, SHType)
 end
 
 eltypeY(::Type{R}, ::ComplexHarmonics) where {R} = Complex{R}
@@ -683,7 +697,7 @@ function computeYlm(θ::Real, ϕ::Real, L::Integer, m::Union{Integer,Nothing} = 
 	SHType::HarmonicType = ComplexHarmonics())
 	
 	T = promote_type(promote_type(typeof(θ), typeof(ϕ)), float(typeof(L)))
-	P = computePlmcostheta(T(θ), L)
+	P = computePlmcostheta(T(θ), L, _maybeabs(m))
 	Y = _computeYlm(P, T(θ), T(ϕ), L, m, m_range, SHType)
 	return Y
 end
@@ -697,7 +711,7 @@ function computeYlm(θ::Pole, ϕ::Real, L::Integer, m::Union{Integer,Nothing} = 
 	m_range::SHMRange = FullRange,
 	SHType::HarmonicType = ComplexHarmonics())
 
-	P = computePlmcostheta(θ, L)
+	P = computePlmcostheta(θ, L, _maybeabs(m))
 	Y = _computeYlm(P, θ, ϕ, L, m, m_range, SHType)
 	return Y
 end

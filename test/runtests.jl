@@ -254,9 +254,19 @@ end
         Y2 = SphericalHarmonics.computeYlm(θ, ϕ, lmax)
         Ym = SphericalHarmonics.allocate_y(ComplexF64, lmax)
 
-        for l in 0:lmax, m in 0:l
+        for l in 0:lmax, m in -l:l
             computeYlm!(Ym, P, θ, ϕ, l, m)
-            for l2 in m:l
+            for l2 in abs(m):l
+                @test Ym[(l2,m)] == Y2[(l2,m)]
+            end
+        end
+
+        Y2 = SphericalHarmonics.computeYlm(θ, ϕ; lmax = lmax, SHType = SphericalHarmonics.RealHarmonics())
+        Ym = SphericalHarmonics.allocate_y(Float64, lmax)
+
+        for l in 0:lmax, m in -l:l
+            computeYlm!(Ym, P, θ, ϕ, l, m, SphericalHarmonicModes.FullRange, SphericalHarmonics.RealHarmonics())
+            for l2 in abs(m):l
                 @test Ym[(l2,m)] == Y2[(l2,m)]
             end
         end
@@ -287,6 +297,39 @@ end
         @testset "Plm" begin
             @test computePlmcostheta(0,10) ≈ computePlmcostheta(NorthPole(),10)
         end
+        @testset "computePlmcostheta!" begin
+            lmax = 3
+            P = SphericalHarmonics.allocate_p(lmax)
+            for m = 0:lmax
+                computePlmcostheta!(P, NorthPole(), lmax, m)
+
+                P2 = computePlmcostheta(NorthPole(), lmax, m)
+                P3 = computePlmcostheta(0, lmax, m)
+
+                for l = m:lmax
+                    @test P[(l,m)] == P2[(l,m)]
+                    @test isapprox(P[(l,m)], P3[(l,m)], atol=1e-10, rtol=1e-10)
+                end
+            end
+        end
+        @testset "computeYlm!" begin
+            lmax = 3
+            Y = SphericalHarmonics.allocate_y(lmax)
+            P = computePlmcostheta(NorthPole(), lmax)
+            computeYlm!(Y, P, NorthPole(), 0, lmax)
+            Y2 = computeYlm(NorthPole(), 0, lmax)
+            @test all(Y ≈ Y2)
+
+            for m in -lmax:lmax
+                computeYlm!(Y, P, NorthPole(), 0, lmax, m)
+                Y2 = computeYlm(NorthPole(), 0, lmax, m)
+                Y3 = computeYlm(0, 0, lmax, m)
+                for l in abs(m):lmax
+                    @test Y[(l,m)] == Y2[(l,m)]
+                    @test isapprox(Y[(l,m)], Y3[(l,m)], atol=1e-10, rtol=1e-10)
+                end
+            end
+        end
         @testset "Ylm" begin
             Y0 = computeYlm(0,0,10,ZeroTo)
             Y0R = computeYlm(0,0,10,ZeroTo,RealHarmonics())
@@ -304,10 +347,43 @@ end
             @test sec(NorthPole()) == 1
             @test sin(NorthPole()) == 0
         end
-   end
-   @testset "south pole" begin
+    end
+    @testset "south pole" begin
         @testset "Plm" begin
             @test computePlmcostheta(π,10) ≈ computePlmcostheta(SouthPole(),10)
+        end
+        @testset "computePlmcostheta!" begin
+            lmax = 3
+            P = SphericalHarmonics.allocate_p(lmax)
+            
+            for m = 0:lmax
+                computePlmcostheta!(P, SouthPole(), lmax, m)
+
+                P2 = computePlmcostheta(SouthPole(), lmax, m)
+                P3 = computePlmcostheta(π, lmax, m)
+                for l = m:lmax
+                    @test P[(l,m)] == P2[(l,m)]
+                    @test isapprox(P[(l,m)], P3[(l,m)], atol=1e-10, rtol=1e-10)
+                end
+            end
+        end
+        @testset "computeYlm!" begin
+            lmax = 3
+            Y = SphericalHarmonics.allocate_y(lmax)
+            P = computePlmcostheta(SouthPole(), lmax)
+            computeYlm!(Y, P, SouthPole(), 0, lmax)
+            Y2 = computeYlm(SouthPole(), 0, lmax)
+            @test all(Y ≈ Y2)
+
+            for m = -lmax:lmax
+                computeYlm!(Y, P, SouthPole(), 0, lmax, m)
+                Y2 = computeYlm(SouthPole(), 0, lmax, m)
+                Y3 = computeYlm(π, 0, lmax, m)
+                for l in abs(m):lmax
+                    @test Y[(l,m)] == Y2[(l,m)]
+                    @test isapprox(Y[(l,m)], Y2[(l,m)], atol=1e-10, rtol=1e-10)
+                end
+            end
         end
         @testset "Ylm" begin
             @test computeYlm(π,0,10) ≈ computeYlm(SouthPole(),10)
