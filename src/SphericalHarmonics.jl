@@ -80,12 +80,12 @@ function compute_coefficients(L::Integer)
 
 	@inbounds for l in 2:L
 
-		Bden = 1/√(4 * (l-1)^2 - 1)
+		Bden = 1/√(4 - 1/(l-1)^2)
 		
 		for m in 0:(l-2)
 			lmind = index_p(Int(l), Int(m))
-			coeff[1, lmind] = √((4l^2 - 1) / (l^2 - m^2))
-			coeff[2, lmind] = -√((l-1)^2 - m^2) * Bden
+			coeff[1, lmind] = √((4 - 1/l^2) / (1 - (m/l)^2))
+			coeff[2, lmind] = -√(1 - (m/(l-1))^2) * Bden
 		end
 	end
 	return coeff
@@ -128,7 +128,19 @@ function checksize(sz, minsize)
 	@assert sz >= minsize "array needs to have a minimum size of $minsize, received size $sz"
 end
 
-function _computePlmcostheta!(::Type{T}, P, costheta, sintheta, L, coeff) where {T<:Real}
+function readcoeffs(coeff::AbstractMatrix, l, m; lmind = index_p(l, m))
+	alm = coeff[1, lmind]
+	blm = coeff[2, lmind]
+	return alm, blm
+end
+
+function readcoeffs(coeff::Nothing, l, m; lmind = nothing) where {T}
+	alm = √((4 - 1/l^2)/(1 - (m/l)^2))
+	blm = -√((1 - ( m / (l-1) )^2 )/(4 - 1/(l-1)^2))
+	return alm, blm
+end
+
+function _computePlmcostheta!(::Type{T}, P::AbstractVector, costheta, sintheta, L, coeff) where {T<:Real}
 	fill!(P, zero(eltype(P)))
 
 	P[index_p(0, 0)] = _invsqrt2pi
@@ -142,8 +154,10 @@ function _computePlmcostheta!(::Type{T}, P, costheta, sintheta, L, coeff) where 
 		for l in 2:Int(L)
 			for m in 0:(l-2)
 				lmind = index_p(l, m)
-				P[lmind] = coeff[1,lmind] *(costheta * P[index_p(l - 1, m)]
-						     + coeff[2,lmind] * P[index_p(l - 2, m)])
+				alm, blm = readcoeffs(coeff, l, m; lmind = lmind)
+
+				P[lmind] = alm *(costheta * P[index_p(l - 1, m)]
+						     + blm * P[index_p(l - 2, m)])
 			end
 			P[index_p(l, l - 1)] = costheta * √(T(2l + 1)) * temp
 			temp = -√(1 + 1 / 2T(l)) * sintheta * temp
@@ -154,7 +168,7 @@ function _computePlmcostheta!(::Type{T}, P, costheta, sintheta, L, coeff) where 
 	return P
 end
 
-function _computePlmcostheta!(::Type{T}, P, costheta, sintheta, L, m, coeff) where {T<:Real}
+function _computePlmcostheta!(::Type{T}, P::AbstractVector, costheta, sintheta, L, m, coeff) where {T<:Real}
 	0 <= m <= L || throw(ArgumentError("m = $m does not satisfy 0 ≤ m ≤ lmax = $L"))
 
 	fill!(P, zero(eltype(P)))
@@ -181,15 +195,16 @@ function _computePlmcostheta!(::Type{T}, P, costheta, sintheta, L, m, coeff) whe
 		# Compute Plm using recursion over l at a fixed m
 		for l in Int(m) + 2:Int(L)
 			lmind = index_p(l, m)
-			P[lmind] = coeff[1, lmind] *(costheta * P[index_p(l - 1, m)]
-					     + coeff[2, lmind] * P[index_p(l - 2, m)])
+			alm, blm = readcoeffs(coeff, l, m; lmind = lmind)
+
+			P[lmind] = alm * (costheta * P[index_p(l - 1, m)] + blm * P[index_p(l - 2, m)])
 		end
 	end
 
 	return P
 end
 
-function _computePlmcostheta!(::Type{T}, P, costheta, sintheta, L, m::Nothing, coeff) where {T<:Real}
+function _computePlmcostheta!(::Type{T}, P::AbstractVector, costheta, sintheta, L, m::Nothing, coeff) where {T<:Real}
 	_computePlmcostheta!(T, P, costheta, sintheta, L, coeff)
 end
 
@@ -200,6 +215,45 @@ end
 function _computePlmcostheta!(P::AbstractVector, costheta, sintheta, L, coeff)
 	T = promote_type(Float64, promote_type(typeof(costheta), eltype(coeff)))
 	_computePlmcostheta!(T, P, costheta, sintheta, L, coeff)
+end
+
+function Plmrecursion(l, m, costheta, Pmm, Pmp1m, coeff)
+	Plm2_m, Plm1_m = Pmm, Pmp1m
+
+	# Compute Plm using recursion over l at a fixed m, starting from l = m + 2
+	for li in Int(m) + 2:Int(l)
+		alm, blm = readcoeffs(coeff, li, m)
+
+		Pl_m = alm * (costheta * Plm1_m + blm * Plm2_m)
+		
+		Plm2_m, Plm1_m = Plm1_m, Pl_m
+	end
+
+	return Plm1_m
+end
+
+function _computePlmcostheta(::Type{T}, costheta, sintheta, l, m, coeff) where {T<:Real}
+	0 <= m <= l || throw(ArgumentError("m = $m does not satisfy 0 ≤ m ≤ l = $l"))
+
+	Pmm = T(_invsqrt2pi)
+
+	if m > 0
+		Pmm = -T(_sqrt3by4pi * sintheta)
+	end
+
+	# Compute Pmm using recursion over l and m
+	for mi in 2:Int(m)
+		Pmm = -√(1 + 1 / 2T(mi)) * sintheta * Pmm
+	end
+
+	if m == l
+		return Pmm
+	end
+
+	Pmp1m = √(T(2m + 3)) * costheta * Pmm
+
+	# Recursion at a constant m to compute Pl,m from Pm,m and Pm+1,m
+	Plm = Plmrecursion(l, m, costheta, Pmm, Pmp1m, coeff)
 end
 
 checksizesP(P, L, m::Integer, coeff::AbstractMatrix) = checksizesP(P, L, coeff)
@@ -376,6 +430,37 @@ function computePlmcostheta(θ::Real, L::Integer, m::Union{Integer, Nothing} = n
 	return P
 end
 
+@doc raw"""
+	SphericalHarmonics.associatedLegendre(θ::Real; l::Integer, m::Integer, [coeff = nothing])
+
+Evaluate the normalized associated Legendre polynomial ``\bar{P}_l^m(\cos \theta)``.
+Optionally a `Matrix` of coefficients returned by [`compute_coefficients`](@ref) may be provided.
+
+See [`computePlmcostheta`](@ref) for the specific choice of normalization used here.
+"""
+associatedLegendre(θ::Real; l::Integer, m::Integer, coeff = nothing) = associatedLegendre(θ, l, m, coeff)
+function associatedLegendre(θ::Real, l::Integer, m::Integer, coeff = nothing)
+	Tlm = promote_type(float(typeof(l)), float(typeof(m)))
+	T = promote_type(Tlm, float(typeof(θ)))
+	_computePlmcostheta(T, cos(θ), sin(θ), l, m, coeff)
+end
+
+function associatedLegendre(θ::NorthPole, l::Integer, m::Integer, coeff = nothing)
+	T = promote_type(Float64, float(typeof(l)))
+	if m != 0
+		return zero(T)
+	end
+	P = _invsqrt2pi * √(T(2l + 1))
+end
+
+function associatedLegendre(θ::SouthPole, l::Integer, m::Integer, coeff = nothing)
+	T = promote_type(Float64, float(typeof(l)))
+	if m != 0
+		return zero(T)
+	end
+	P = _invsqrt2pi * (-1)^Int(l) * √(T(2l + 1))
+end
+
 """
 	computePlmx(x::Real; lmax::Integer, [m::Integer])
 	computePlmx(x::Real, lmax::Integer, [m::Integer])
@@ -400,7 +485,7 @@ abstract type HarmonicType end
 struct RealHarmonics <: HarmonicType end
 struct ComplexHarmonics <: HarmonicType end
 
-function phase(::RealHarmonics, ::Type{FullRange}, m, ϕ, ::Any, ::Any)
+function phase(::RealHarmonics, ::Type{FullRange}, m, ϕ, norm, CSphase)
 	S, C = sincos(abs(Int(m))*ϕ)
 	C, S
 end
@@ -736,6 +821,43 @@ end
 function computeYlm(θ::Pole; lmax::Integer, m::Union{Integer,Nothing} = nothing,
 	m_range::SHMRange = FullRange, SHType::HarmonicType = ComplexHarmonics())
 	computeYlm(θ, 0, lmax, m, m_range, SHType)
+end
+
+"""
+	SphericalHarmonics.sphericalharmonic(θ, ϕ; l, m, [SHType = ComplexHarmonics()], [coeff = nothing])
+
+Evaluate the spherical harmonic ``Y_{l m}(θ, ϕ)``. The flag `SHType` sets the type of the harmonic computed, 
+and setting this to `RealHarmonics()` would evaluate real spherical harmonics. Optionally a precomputed
+`Matrix` of coefficients returned by [`compute_coefficients`](@ref) may be provided.
+
+# Example
+```jldoctest
+julia> SphericalHarmonics.sphericalharmonic(π/3, π/3, l = 500, m = 250)
+-0.1891010031219448 - 0.32753254516944336im
+
+julia> SphericalHarmonics.sphericalharmonic(π/3, π/3, l = 500, m = 250, SHType = SphericalHarmonics.RealHarmonics())
+-0.2674292032734113
+```
+"""
+function sphericalharmonic(θ::Real, ϕ::Real; l::Integer, m::Integer, 
+	SHType::HarmonicType = ComplexHarmonics(), coeff = nothing)
+
+	sphericalharmonic(θ, ϕ, l, m, SHType, coeff)
+end
+function sphericalharmonic(θ::Real, ϕ::Real, l::Integer, m::Integer, SHType::HarmonicType = ComplexHarmonics(), 
+	coeff = nothing)
+
+	TΩ = promote_type(float(typeof(θ)), float(typeof(ϕ)))
+	Tlm = promote_type(float(typeof(l)), float(typeof(m)))
+	T = promote_type(TΩ, Tlm)
+
+	P = associatedLegendre(θ, l, abs(m), coeff)
+	if m == 0 
+		return _invsqrt2 * P
+	end
+	phasepos, phaseneg = phase(SHType, FullRange, abs(m), ϕ, _invsqrt2, (-1)^Int(m))
+	norm = m >= 0 ? phasepos : phaseneg
+	norm * P
 end
 
 end

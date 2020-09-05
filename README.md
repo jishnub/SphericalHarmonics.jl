@@ -94,3 +94,7 @@ julia> Y = computeYlm(pi/3, pi/3, lmax = 1, SHType = SphericalHarmonics.RealHarm
 ```
 
 These are faster to evaluate and require less memory to store.
+
+# See also
+
+[FastTransforms.jl](https://github.com/JuliaApproximation/FastTransforms.jl): The function `FastTransforms.sphevaluate` is faster at evaluating real spherical harmonics.

@@ -463,6 +463,136 @@ end
     end
 end
 
+@testset "single mode" begin
+    @testset "Associated Legendre Polynomials" begin
+        lmax = 20
+        coeff = SphericalHarmonics.compute_coefficients(lmax)
+        
+        @testset "explicit coeff" begin
+            for θ in LinRange(0, pi, 10)
+                P = computePlmcostheta(θ, lmax = lmax)
+            
+                for l = 0:lmax, m = 0:l
+                    Plm = SphericalHarmonics.associatedLegendre(θ, l, m, coeff)
+                    @test isapprox(P[(l,m)], Plm, atol = 1e-14, rtol = 1e-14)
+                end
+            end
+
+            P = computePlmcostheta(SphericalHarmonics.NorthPole(), lmax = lmax)
+            for l = 0:lmax, m = 0:l
+                Plm = SphericalHarmonics.associatedLegendre(SphericalHarmonics.NorthPole(), l, m, coeff)
+                @test isapprox(P[(l,m)], Plm, atol = 1e-14, rtol = 1e-14)
+            end
+
+            P = computePlmcostheta(SphericalHarmonics.SouthPole(), lmax = lmax)
+            for l = 0:lmax, m = 0:l
+                Plm = SphericalHarmonics.associatedLegendre(SphericalHarmonics.SouthPole(), l, m, coeff)
+                @test isapprox(P[(l,m)], Plm, atol = 1e-14, rtol = 1e-14)
+            end
+        end
+        @testset "implicit coeff" begin
+            for θ in LinRange(0, pi, 10)
+                P = computePlmcostheta(θ, lmax = lmax)
+                for l = 0:lmax, m = 0:l
+                    Plm = SphericalHarmonics.associatedLegendre(θ, l, m)
+                    Plm2 = SphericalHarmonics.associatedLegendre(θ, l = l, m = m)
+                    @test Plm2 == Plm
+                    @test isapprox(P[(l,m)], Plm, atol = 1e-14, rtol = 1e-14)
+                end
+            end
+
+            P = computePlmcostheta(SphericalHarmonics.NorthPole(), lmax = lmax)
+            for l = 0:lmax, m = 0:l
+                Plm = SphericalHarmonics.associatedLegendre(SphericalHarmonics.NorthPole(), l, m)
+                @test isapprox(P[(l,m)], Plm, atol = 1e-14, rtol = 1e-14)
+            end
+
+            P = computePlmcostheta(SphericalHarmonics.SouthPole(), lmax = lmax)
+            for l = 0:lmax, m = 0:l
+                Plm = SphericalHarmonics.associatedLegendre(SphericalHarmonics.SouthPole(), l, m)
+                @test isapprox(P[(l,m)], Plm, atol = 1e-14, rtol = 1e-14)
+            end
+        end
+    end
+    @testset "SphericalHarmonics" begin
+        lmax = 20
+        coeff = SphericalHarmonics.compute_coefficients(lmax);
+
+        @testset "ComplexHarmonics" begin
+            @testset "explicit coeff" begin
+                for θ in LinRange(0, pi, 10), ϕ in LinRange(0, 2pi, 10)[1:end-1]
+                    Y = computeYlm(θ, ϕ, lmax = lmax)
+                
+                    for l = 0:lmax, m = -l:l
+                        Ylm = SphericalHarmonics.sphericalharmonic(θ, ϕ, l, m, 
+                            SphericalHarmonics.ComplexHarmonics(), coeff)
+                       
+                        Ylm2 = SphericalHarmonics.sphericalharmonic(θ, ϕ; l = l, m = m, 
+                            SHType = SphericalHarmonics.ComplexHarmonics(), coeff = coeff)
+
+                        @test Ylm == Ylm2
+
+                        @test isapprox(Y[(l,m)], Ylm, atol = 1e-14, rtol = 1e-14)
+                    end
+                end
+            end
+            @testset "implicit coeff" begin
+                for θ in LinRange(0, pi, 10), ϕ in LinRange(0, 2pi, 10)[1:end-1]
+                    Y = computeYlm(θ, ϕ, lmax = lmax)
+                
+                    for l = 0:lmax, m = -l:l
+                        Ylm = SphericalHarmonics.sphericalharmonic(θ, ϕ, l, m, 
+                            SphericalHarmonics.ComplexHarmonics())
+                       
+                        Ylm2 = SphericalHarmonics.sphericalharmonic(θ, ϕ; l = l, m = m, 
+                            SHType = SphericalHarmonics.ComplexHarmonics())
+
+                        @test Ylm == Ylm2
+
+                        @test isapprox(Y[(l,m)], Ylm, atol = 1e-14, rtol = 1e-14)
+                    end
+                end
+            end
+        end
+        @testset "RealHarmonics" begin
+            @testset "explicit coeff" begin
+                for θ in LinRange(0, pi, 10), ϕ in LinRange(0, 2pi, 10)[1:end-1]
+                    Y = computeYlm(θ, ϕ, lmax = lmax, SHType = SphericalHarmonics.RealHarmonics())
+                
+                    for l = 0:lmax, m = -l:l
+                        Ylm = SphericalHarmonics.sphericalharmonic(θ, ϕ, l, m, 
+                            SphericalHarmonics.RealHarmonics(), coeff)
+                       
+                        Ylm2 = SphericalHarmonics.sphericalharmonic(θ, ϕ; l = l, m = m, 
+                            SHType = SphericalHarmonics.RealHarmonics(), coeff = coeff)
+
+                        @test Ylm == Ylm2
+
+                        @test isapprox(Y[(l,m)], Ylm, atol = 1e-14, rtol = 1e-14)
+                    end
+                end
+            end 
+            @testset "implicit coeff" begin
+                for θ in LinRange(0, pi, 10), ϕ in LinRange(0, 2pi, 10)[1:end-1]
+                    Y = computeYlm(θ, ϕ, lmax = lmax, SHType = SphericalHarmonics.RealHarmonics())
+                
+                    for l = 0:lmax, m = -l:l
+                        Ylm = SphericalHarmonics.sphericalharmonic(θ, ϕ, l, m, 
+                            SphericalHarmonics.RealHarmonics())
+                       
+                        Ylm2 = SphericalHarmonics.sphericalharmonic(θ, ϕ; l = l, m = m, 
+                            SHType = SphericalHarmonics.RealHarmonics())
+
+                        @test Ylm == Ylm2
+
+                        @test isapprox(Y[(l,m)], Ylm, atol = 1e-14, rtol = 1e-14)
+                    end
+                end
+            end
+        end
+    end
+end
+
 @testset "orthonormality" begin
 
     @testset "Associated Legendre Polynomials" begin
