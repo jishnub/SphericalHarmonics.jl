@@ -159,7 +159,9 @@ function _computePlmcostheta!(::Type{T}, P, costheta, sintheta, L, m, coeff) whe
 
 	fill!(P, zero(eltype(P)))
 
-	P[index_p(0, 0)] = _invsqrt2pi
+	if m == 0
+		P[index_p(0, 0)] = _invsqrt2pi
+	end
 
 	if (L > 0)
 		P11 = -(_sqrt3by4pi * sintheta)
