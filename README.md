@@ -22,7 +22,7 @@ julia> P = computePlmcostheta(pi/2, lmax = 1)
  -0.4886025119029199
 ```
 
-The polynomials are ordered with `m` increasing faster than `l`, and the returned array may be indexed using `(l,m)` Tuples as 
+The polynomials are ordered with `m` increasing faster than `l`, and the returned array may be indexed using `(l,m)` Tuples as
 
 ```julia
 julia> P[(0,0)]
@@ -35,7 +35,7 @@ true
 Spherical harmonics for a colatitude `θ` and azimuth `ϕ` may be generated using the signature `computeYlm(θ, ϕ; lmax)`, eg.
 
 ```julia
-julia> Y = computeYlm(pi/3, 0, lmax = 1) 
+julia> Y = computeYlm(pi/3, 0, lmax = 1)
 4-element SHArray(::Array{Complex{Float64},1}, (ML(0:1, -1:1),)):
   0.2820947917738782 + 0.0im
   0.2992067103010745 - 0.0im
@@ -43,7 +43,7 @@ julia> Y = computeYlm(pi/3, 0, lmax = 1)
  -0.2992067103010745 - 0.0im
 ```
 
-The returned array may be indexed using `(l,m)` Tuples as well, as 
+The returned array may be indexed using `(l,m)` Tuples as well, as
 
 ```julia
 julia> Y[(1,-1)]
