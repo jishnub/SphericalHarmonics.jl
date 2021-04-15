@@ -360,32 +360,32 @@ function computePlmcostheta!(P::AbstractVector{<:Real}, ::SouthPole, L::Integer)
 	return P
 end
 
-@doc raw"""
+"""
 	computePlmcostheta(θ::Real; lmax::Integer, [m::Integer])
 	computePlmcostheta(θ::Real, lmax::Integer, [m::Integer])
 
-Compute an entire set of normalized Associated Legendre Polynomials ``\bar{P}_l^m(\cos θ)`` where
-``0 ≤ l ≤ l_\mathrm{max}`` and ``0 ≤ m ≤ l`` for colatitude ``\theta``. If `m` is provided then only the
+Compute an entire set of normalized Associated Legendre Polynomials ``\\bar{P}_l^m(\\cos θ)`` where
+``0 ≤ l ≤ l_\\mathrm{max}`` and ``0 ≤ m ≤ l`` for colatitude ``\\theta``. If `m` is provided then only the
 polynomials corresponding to the specified `m` are computed.
 
 The polynomials are normalized as
 
 ```math
-\bar{P}_{\ell}^m = \sqrt{\frac{(2\ell + 1)(\ell-m)!}{2\pi (\ell+m)!}} P_{\ell m},
+\\bar{P}_{\\ell}^m = \\sqrt{\\frac{(2\\ell + 1)(\\ell-m)!}{2\\pi (\\ell+m)!}} P_{\\ell m},
 ```
 
-where ``P_{\ell m}`` are the standard
+where ``P_{\\ell m}`` are the standard
 [associated Legendre polynomials](https://en.wikipedia.org/wiki/Associated_Legendre_polynomials#Alternative_notations),
-and are defined in terms of Legendre polynomials ``P_\ell(x)`` as
+and are defined in terms of Legendre polynomials ``P_\\ell(x)`` as
 
 ```math
-P_{\ell m}\left(x\right)=\left(1-x^{2}\right)^{m/2}\frac{d^{m}}{dx^{m}}P_{\ell}\left(x\right).
+P_{\\ell m}\\left(x\\right)=\\left(1-x^{2}\\right)^{m/2}\\frac{d^{m}}{dx^{m}}P_{\\ell}\\left(x\\right).
 ```
 
-The normalized polynomials ``\bar{P}_{\ell}^m`` satisfy
+The normalized polynomials ``\\bar{P}_{\\ell}^m`` satisfy
 
 ```math
-\int_{0}^{\pi} \sin θ d\theta\,\left| \bar{P}_{\ell}^m(\cos θ) \right|^2 = \frac{1}{\pi}
+\\int_{0}^{\\pi} \\sin θ d\\theta\\,\\left| \\bar{P}_{\\ell}^m(\\cos θ) \\right|^2 = \\frac{1}{\\pi}
 ```
 
 !!! info
@@ -749,7 +749,8 @@ Y_{\ell,m}\left(\theta,\phi\right)=\begin{cases}
 ```
 
 The precision of the result may be increased by using arbitrary-precision arguments.
-
+"""*
+"""
 # Examples
 ```jldoctest
 julia> Y = computeYlm(pi/2, 0, lmax = 1)
