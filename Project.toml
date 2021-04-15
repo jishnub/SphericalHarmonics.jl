@@ -1,6 +1,6 @@
 name = "SphericalHarmonics"
 uuid = "c489a379-e885-57ff-9236-bd896d33c250"
-version = "0.1.2"
+version = "0.1.3"
 
 [deps]
 SphericalHarmonicArrays = "9dd28c12-4719-4e7d-b634-e7b733a6d046"
