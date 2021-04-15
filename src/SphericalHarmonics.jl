@@ -399,7 +399,7 @@ The precision of the result may be increased by using arbitrary-precision argume
 # Examples
 ```jldoctest
 julia> P = computePlmcostheta(pi/2, lmax = 1)
-3-element SHArray(::Array{Float64,1}, (ML(0:1, 0:1),)):
+3-element SHArray(::$(Array{Float64,1}), (ML(0:1, 0:1),)):
   0.3989422804014327
   4.231083042742082e-17
  -0.4886025119029199
@@ -408,7 +408,7 @@ julia> P[(0,0)]
 0.3989422804014327
 
 julia> P = computePlmcostheta(big(pi)/2, lmax = big(1)) # Arbitrary precision
-3-element SHArray(::Array{BigFloat,1}, (ML(0:1, 0:1),)):
+3-element SHArray(::$(Array{BigFloat,1}), (ML(0:1, 0:1),)):
   0.3989422804014326779399460599343818684758586311649346576659258296706579258993008
   3.789785583114350800838137317730900078444216599640987847808409161681770236721676e-78
  -0.4886025119029199215863846228383470045758856081942277021382431574458410003616367
@@ -753,7 +753,7 @@ The precision of the result may be increased by using arbitrary-precision argume
 # Examples
 ```jldoctest
 julia> Y = computeYlm(pi/2, 0, lmax = 1)
-4-element SHArray(::Array{Complex{Float64},1}, (ML(0:1, -1:1),)):
+4-element SHArray(::$(Array{Complex{Float64},1}), (ML(0:1, -1:1),)):
      0.2820947917738782 + 0.0im
      0.3454941494713355 - 0.0im
  2.9918275112863375e-17 + 0.0im
@@ -763,21 +763,21 @@ julia> Y[(1,-1)] # index using (l,m)
 0.3454941494713355 - 0.0im
 
 julia> Y = computeYlm(big(pi)/2, big(0), lmax = big(1)) # Arbitrary precision
-4-element SHArray(::Array{Complex{BigFloat},1}, (ML(0:1, -1:1),)):
+4-element SHArray(::$(Array{Complex{BigFloat},1}), (ML(0:1, -1:1),)):
     0.2820947917738781434740397257803862929220253146644994284220428608553212342207478 + 0.0im
     0.3454941494713354792652446460318896831393773703262433134867073548945156550201567 - 0.0im
  2.679783085063171668225419916118067917387251852939708540164955895366691604430101e-78 + 0.0im
    -0.3454941494713354792652446460318896831393773703262433134867073548945156550201567 - 0.0im
 
 julia> computeYlm(SphericalHarmonics.NorthPole(), 0, lmax = 1)
-4-element SHArray(::Array{Complex{Float64},1}, (ML(0:1, -1:1),)):
+4-element SHArray(::$(Array{Complex{Float64},1}), (ML(0:1, -1:1),)):
  0.2820947917738782 + 0.0im
                -0.0 + 0.0im
    0.48860251190292 + 0.0im
                 0.0 + 0.0im
 
 julia> Y = computeYlm(pi/2, pi/3, lmax = 1, m_range = SphericalHarmonics.ZeroTo, SHType = SphericalHarmonics.RealHarmonics())
-3-element SHArray(::Array{Float64,1}, (ML(0:1, 0:1),)):
+3-element SHArray(::$(Array{Float64,1}), (ML(0:1, 0:1),)):
   0.2820947917738782
   2.9918275112863375e-17
  -0.24430125595146002
