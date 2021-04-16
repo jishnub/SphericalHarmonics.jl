@@ -134,7 +134,7 @@ function readcoeffs(coeff::AbstractMatrix, l, m; lmind = index_p(l, m))
 	return alm, blm
 end
 
-function readcoeffs(coeff::Nothing, l, m; lmind = nothing) where {T}
+function readcoeffs(coeff::Nothing, l, m; lmind = nothing)
 	alm = √((4 - 1/l^2)/(1 - (m/l)^2))
 	blm = -√((1 - ( m / (l-1) )^2 )/(4 - 1/(l-1)^2))
 	return alm, blm

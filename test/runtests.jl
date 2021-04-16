@@ -2,8 +2,13 @@ using SphericalHarmonics
 using SphericalHarmonicModes
 using Test
 using HCubature
+using Aqua
 
 import SphericalHarmonics: NorthPole, SouthPole, allocate_y, allocate_p, RealHarmonics, ComplexHarmonics
+
+@testset "project quality" begin
+    Aqua.test_all(SphericalHarmonics)
+end
 
 @testset "allocate" begin
     lmax = 4
