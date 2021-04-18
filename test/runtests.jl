@@ -20,19 +20,6 @@ end
     @test eltype(allocate_p(BigFloat, lmax)) == BigFloat
 end
 
-@testset "indexing" begin
-    @testset "p" begin
-        ind1 = SphericalHarmonics.index_p(3, 0)
-        ind2 = SphericalHarmonics.index_p(3, 3)
-        @test SphericalHarmonics.index_p(3) == ind1:ind2
-    end
-    @testset "y" begin
-        ind1 = SphericalHarmonics.index_y(3, -3)
-        ind2 = SphericalHarmonics.index_y(3, 3)
-        @test SphericalHarmonics.index_y(3) == ind1:ind2
-    end
-end
-
 @testset "Ylm explicit" begin
 
     function explicit_shs_complex_fullrange(θ, φ)
@@ -75,11 +62,15 @@ end
         for θ in LinRange(0, π, 100), ϕ in LinRange(0, 2π, 200)
             Y = computeYlm(θ, ϕ, 3)
             Yex = explicit_shs_complex_fullrange(θ, ϕ)
-            @test Y ≈ Yex
+            for (ind,mode) in enumerate(ML(0:3))
+                @test Y[mode] ≈ Yex[ind]
+            end
 
             Y = computeYlm(θ, ϕ, 3, ZeroTo)
             Yex = explicit_shs_complex_zeroto(θ, ϕ)
-            @test Y ≈ Yex
+            for (ind,mode) in enumerate(ML(0:3, ZeroTo))
+                @test Y[mode] ≈ Yex[ind]
+            end
         end
     end
 
@@ -122,11 +113,15 @@ end
         for θ in LinRange(0, π, 100), ϕ in LinRange(0, 2π, 100)
             Y = computeYlm(θ, ϕ, 3, FullRange, SphericalHarmonics.RealHarmonics())
             Yex = explicit_shs_real_fullrange(θ, ϕ)
-            @test Y ≈ Yex
+            for (ind,mode) in enumerate(ML(0:3))
+                @test Y[mode] ≈ Yex[ind]
+            end
 
             Y = computeYlm(θ, ϕ, 3, ZeroTo, SphericalHarmonics.RealHarmonics())
             Yex = explicit_shs_real_zeroto(θ, ϕ)
-            @test Y ≈ Yex
+            for (ind,mode) in enumerate(ML(0:3, ZeroTo))
+                @test Y[mode] ≈ Yex[ind]
+            end
         end
     end
 
@@ -172,8 +167,11 @@ end
     @test P == computePlmcostheta(NorthPole(), lmax)
 
     @testset "single m" begin
-        P2 = SphericalHarmonics.allocate_p(Float64, lmax)
         computePlmcostheta!(P, θ, lmax, coeff)
+        P2 = SphericalHarmonics.allocate_p(Float64, lmax)
+        P3 = SphericalHarmonics.allocate_p(Float64, lmax)
+        computePlmcostheta!(P3, θ, lmax, nothing, coeff)
+        @test P3 ≈ P
 
         for l in 0:lmax, m in 0:l
             computePlmcostheta!(P2, θ, l, m, coeff)
@@ -424,8 +422,8 @@ end
         @test P[(10,10)] ≈ (√(969969/(2big(pi))))/512
     end
 
-    θ_range_big = LinRange(0, big(pi), 10)
-    ϕ_range_big = LinRange(0, 2big(pi), 10)[1:end-1]
+    θ_range_big = LinRange(0, big(pi), 20)
+    ϕ_range_big = LinRange(0, 2big(pi), 5)
 
     @testset "lmax 1000" begin
         lmax = 1000
@@ -626,12 +624,11 @@ end
             I, E = hcubature(f, [0], [π], atol=1e-10);
             @test isapprox(abs(I), 0, atol = max(abs(E), 1e-10))
         end
+        lmax = 10
+        coeff = SphericalHarmonics.compute_coefficients(lmax)
+        P = SphericalHarmonics.allocate_p(lmax)
 
         @testset "Normalization" begin
-            lmax = 10
-            coeff = SphericalHarmonics.compute_coefficients(lmax)
-            P = SphericalHarmonics.allocate_p(lmax)
-
             function f!(x, P, l, m)
                 θ = x[1]
                 computePlmcostheta!(P, θ, l, m, coeff)
@@ -644,10 +641,6 @@ end
         end
 
         @testset "Orthogonality" begin
-            lmax = 10
-            coeff = SphericalHarmonics.compute_coefficients(lmax)
-            P = SphericalHarmonics.allocate_p(lmax)
-
             @testset "same m, different l" begin
                 function f!(x, P, k, l, m)
                     θ = x[1]

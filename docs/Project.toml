@@ -1,5 +1,6 @@
 [deps]
 Documenter = "e30172f5-a6a5-5a46-863b-614d45cd2de4"
+SphericalHarmonics = "c489a379-e885-57ff-9236-bd896d33c250"
 
 [compat]
 Documenter = "0.25"

@@ -7,8 +7,8 @@ SphericalHarmonicArrays = "9dd28c12-4719-4e7d-b634-e7b733a6d046"
 SphericalHarmonicModes = "0e9554e2-b38b-11e9-16d7-9d9abfec665a"
 
 [compat]
-SphericalHarmonicArrays = "0.4"
-SphericalHarmonicModes = "0.4"
+SphericalHarmonicArrays = "0.4.4"
+SphericalHarmonicModes = "0.4.7"
 julia = "1"
 
 [extras]
