@@ -5,103 +5,59 @@ using SphericalHarmonicArrays
 
 export computeYlm, computeYlm!, computePlmcostheta, computePlmcostheta!
 
-Base.@irrational _invsqrt2 0.7071067811865476 1/√(big(2))
-Base.@irrational _invsqrt2pi 0.3989422804014327 1/√(2*big(pi))
-Base.@irrational _sqrt3by4pi 0.4886025119029199 √(3/(4big(pi)))
-Base.@irrational _sqrt3by2pi 0.690988298942671 √(3/(2big(pi)))
+import Base: @propagate_inbounds
 
-"""
-	SphericalHarmonics.Pole <: Real
-
-Supertype of [`NorthPole`](@ref) and [`SouthPole`](@ref).
-"""
-abstract type Pole <: Real end
-"""
-	SphericalHarmonics.NorthPole <: SphericalHarmonics.Pole
-
-The angle ``\\theta = 0`` in spherical polar coordinates.
-"""
-struct NorthPole <: Pole end
-"""
-	SphericalHarmonics.SouthPole <: SphericalHarmonics.Pole
-
-The angle ``\\theta = π`` in spherical polar coordinates.
-"""
-struct SouthPole <: Pole end
-
-Base.cos(::NorthPole) = one(Float64)
-Base.cos(::SouthPole) = -one(Float64)
-Base.sin(::Pole) = zero(Float64)
-
-for DT in [:zero, :one]
-	@eval Base.$DT(::Type{<:Pole}) = $DT(Float64)
-	@eval Base.$DT(x::Pole) = $DT(typeof(x))
-end
-
-Base.promote_rule(::Type{<:Pole}, T::Type{<:Real}) = promote_type(Float64, T)
-
-# Return the value of θ corresponding to the poles
-Base.Float64(::SouthPole) = Float64(pi)
-Base.Float64(::NorthPole) = zero(Float64)
-
-Base.float(p::Pole) = Float64(p)
+include("irrationals.jl")
 
 const SHMRange = Union{Type{FullRange}, Type{ZeroTo}}
 
 sizeP(maxDegree::Int) = div((maxDegree + 1) * (maxDegree + 2), 2)
-sizeY(maxDegree::Int, m_range::Type{FullRange} = FullRange) = (maxDegree + 1) * (maxDegree + 1)
+sizeY(maxDegree::Int, ::Type{FullRange} = FullRange) = (maxDegree + 1) * (maxDegree + 1)
 sizeY(maxDegree::Int, ::Type{ZeroTo}) = sizeP(maxDegree)
 
-index_p(l::Integer, m::Integer) = (li = Int(l); Int(m) + div(li*(li+1), 2) + 1)
-function index_p(l::Integer, m::AbstractUnitRange{<:Integer})
-	index_p(Int(l),Int(first(m))):index_p(Int(l),Int(last(m)))
-end
-index_p(l::Integer) = index_p(l, ZeroTo(l))
-
-index_y(l::Integer, m::Integer, m_range::Type{FullRange} = FullRange) = (li = Int(l); Int(m) + li + li^2 + 1)
-index_y(l::Integer, m::Integer, ::Type{ZeroTo}) = index_p(l, m)
-function index_y(l::Integer, m::AbstractUnitRange{<:Integer}, m_range = FullRange)
-	index_y(Int(l),Int(first(m)), m_range):index_y(Int(l),Int(last(m)), m_range)
-end
-index_y(l::Integer) = index_y(l, FullRange(l), FullRange)
-
 """
-	SphericalHarmonics.compute_coefficients(L::Integer)
+	SphericalHarmonics.compute_coefficients(L)
 
 Precompute coefficients ``a_l^m`` and ``b_l^m`` for all ``2 ≤ l ≤ L`` and ``0 ≤ m ≤ l-2``.
 
-	SphericalHarmonics.compute_coefficients(L::Integer, m::Integer)
+	SphericalHarmonics.compute_coefficients(L, m)
 
 Precompute coefficients ``a_l^m`` and ``b_l^m`` for all ``|m| + 2 ≤ l ≤ L`` and the specified ``m``.
 """
-function compute_coefficients(L::Integer)
-	T = typeof(sqrt(L^2))
-	coeff = zeros(T, 2, sizeP(Int(L)))
+function compute_coefficients(L)
+    @assert L >= 0 "degree must be >= 0"
 
-	@inbounds for l in 2:L
+    shmodes = ML(ZeroTo(Int(L)), ZeroTo)
+	coeff = zeros(typeof(sqrt(L)), 2, shmodes)
 
-		Bden = 1/√(4 - 1/(l-1)^2)
-
+	@inbounds for l in 2:Int(L)
+        # pre-compute certain terms to improve performance
+        invlm1 = 1/(l-1)
+        invl = 1/l
+        Anum = 4 - invl^2
+        Bden = 1/√(4 - invlm1^2)
 		for m in 0:(l-2)
-			lmind = index_p(Int(l), Int(m))
-			coeff[1, lmind] = √((4 - 1/l^2) / (1 - (m/l)^2))
-			coeff[2, lmind] = -√(1 - (m/(l-1))^2) * Bden
+			coeff[1, (l, m)] = √(Anum / (1 - (m * invl)^2))
+			coeff[2, (l, m)] = -√(1 - (m * invlm1)^2) * Bden
 		end
 	end
 	return coeff
 end
 
-compute_coefficients(L::Integer, ::Nothing) = compute_coefficients(L)
-function compute_coefficients(L::Integer, m::Integer)
-	m >= 0 || throw(ArgumentError("m must be >= 0"))
-	T = typeof(sqrt(L^2))
-	coeff = zeros(T, 2, sizeP(Int(L)))
+compute_coefficients(L, ::Nothing) = compute_coefficients(L)
+function compute_coefficients(L, m)
+    @assert L >= 0 "degree must be >= 0"
+	@assert m >= 0 "m must be >= 0"
 
-	@inbounds for l in abs(m) + 2:L
+    shmodes = ML(ZeroTo(Int(L)), SingleValuedRange(m))
+	coeff = zeros(typeof(sqrt(L)), 2, shmodes)
 
-		lmind = index_p(Int(l), Int(m))
-		coeff[1, lmind] = √((4l^2 - 1) / (l^2 - m^2))
-		coeff[2, lmind] = -√(((l-1)^2 - m^2) / (4 * (l-1)^2 - 1))
+	@inbounds for l in abs(Int(m)) + 2:Int(L)
+        # pre-compute certain terms to improve performance
+        invlm1 = 1/(l-1)
+        invl = 1/l
+        coeff[1, (l,m)] = √((4 - invl^2) / (1 - (m * invl)^2))
+        coeff[2, (l,m)] = -√((1 - (m * invlm1)^2) / (4 - invlm1^2))
 	end
 	return coeff
 end
@@ -127,97 +83,113 @@ allocate_y(L::Integer, m_range = FullRange) = allocate_y(ComplexF64, L, m_range)
 function checksize(sz, minsize)
 	@assert sz >= minsize "array needs to have a minimum size of $minsize, received size $sz"
 end
+function checksizesP(P, L)
+    L >= 0 || throw(ArgumentError("lmax = $L does not correspond to a valid mode"))
+    checksize(length(P), sizeP(Int(L)))
+end
 
-function readcoeffs(coeff::AbstractMatrix, l, m; lmind = index_p(l, m))
-	alm = coeff[1, lmind]
-	blm = coeff[2, lmind]
+@propagate_inbounds function readcoeffs(coeff::SHArray, l, m)
+	alm = coeff[1, (l,m)]
+	blm = coeff[2, (l,m)]
 	return alm, blm
 end
 
-function readcoeffs(coeff::Nothing, l, m; lmind = nothing)
-	alm = √((4 - 1/l^2)/(1 - (m/l)^2))
-	blm = -√((1 - ( m / (l-1) )^2 )/(4 - 1/(l-1)^2))
+function readcoeffs(coeff::Nothing, l, m)
+    @assert abs(m) <= l - 2 "m must be <= l - 2"
+    invl = 1/l
+    invlm1 = 1/(l-1)
+	alm = √((4 - invl^2)/(1 - (m * invl)^2))
+	blm = -√((1 - (m * invlm1)^2 )/(4 - invlm1^2))
 	return alm, blm
 end
 
-function _computePlmcostheta!(::Type{T}, P::AbstractVector, costheta, sintheta, L, coeff) where {T<:Real}
+######################################################################################
+# Associated Legendre polynomials
+######################################################################################
+
+_promotetype(costheta, sintheta, coeff::Nothing) = promote_type(typeof(costheta), typeof(sintheta))
+_promotetype(costheta, sintheta, coeff::AbstractArray) = reduce(promote_type, (typeof(costheta), typeof(sintheta), eltype(coeff)))
+
+_viewmodes(P, modes) = @view P[(firstindex(P) - 1) .+ (1:length(modes))]
+
+function _wrapSHArray(P, modes)
+    SHArray(_viewmodes(P, modes), (modes,))
+end
+function _wrapSHArray(P, L, m_range)
+    modes = ML(ZeroTo(Int(L)), m_range)
+    _wrapSHArray(P, modes)
+end
+
+@propagate_inbounds function _computePlmcostheta!(P::AbstractVector, costheta, sintheta, L, coeff)
 	fill!(P, zero(eltype(P)))
 
-	P[index_p(0, 0)] = _invsqrt2pi
+    T = _promotetype(costheta, sintheta, coeff)
+    Plm = _wrapSHArray(P, L, ZeroTo)
+
+	Plm[(0, 0)] = _invsqrt2pi
 
 	if (L > 0)
-		P[index_p(1, 0)] = _sqrt3by2pi * costheta
+		Plm[(1, 0)] = _sqrt3by2pi * costheta
 		P11 = -(_sqrt3by4pi * sintheta)
-		P[index_p(1, 1)] = P11
+		Plm[(1, 1)] = P11
 		temp = T(P11)
 
 		for l in 2:Int(L)
 			for m in 0:(l-2)
-				lmind = index_p(l, m)
-				alm, blm = readcoeffs(coeff, l, m; lmind = lmind)
-
-				P[lmind] = alm *(costheta * P[index_p(l - 1, m)]
-						     + blm * P[index_p(l - 2, m)])
+				alm, blm = readcoeffs(coeff, l, m)
+				Plm[(l,m)] = alm * (costheta * Plm[(l - 1, m)] + blm * Plm[(l - 2, m)])
 			end
-			P[index_p(l, l - 1)] = costheta * √(T(2l + 1)) * temp
+			Plm[(l, l - 1)] = costheta * √(T(2l + 1)) * temp
 			temp = -√(1 + 1 / 2T(l)) * sintheta * temp
-			P[index_p(l, l)] = temp
+			Plm[(l, l)] = temp
 		end
 	end
 
 	return P
 end
 
-function _computePlmcostheta!(::Type{T}, P::AbstractVector, costheta, sintheta, L, m, coeff) where {T<:Real}
+@propagate_inbounds function _computePlmcostheta!(P::AbstractVector, costheta, sintheta, L, m, coeff)
 	0 <= m <= L || throw(ArgumentError("m = $m does not satisfy 0 ≤ m ≤ lmax = $L"))
 
+    T = _promotetype(costheta, sintheta, coeff)
+
 	fill!(P, zero(eltype(P)))
+    Plm = _wrapSHArray(P, L, ZeroTo)
 
 	if m == 0
-		P[index_p(0, 0)] = _invsqrt2pi
+		Plm[(0, 0)] = _invsqrt2pi
 	end
 
 	if (L > 0)
 		P11 = -(_sqrt3by4pi * sintheta)
-		P[index_p(1, 1)] = P11
+		Plm[(1, 1)] = P11
 
 		# Compute Pmm using recursion over l and m
 		for mi in 2:Int(m)
-			P[index_p(mi, mi)] = -√(1 + 1 / 2T(mi)) * sintheta * P[index_p(mi-1, mi-1)]
+			Plm[(mi, mi)] = -√(1 + 1 / 2T(mi)) * sintheta * Plm[(mi-1, mi-1)]
 		end
 
 		if m == L
 			return P
 		end
 
-		P[index_p(m + 1, m)] = √(T(2m + 3)) * costheta * P[index_p(m, m)]
+		Plm[(m + 1, m)] = √(T(2m + 3)) * costheta * Plm[(m, m)]
 
 		# Compute Plm using recursion over l at a fixed m
 		for l in Int(m) + 2:Int(L)
-			lmind = index_p(l, m)
-			alm, blm = readcoeffs(coeff, l, m; lmind = lmind)
-
-			P[lmind] = alm * (costheta * P[index_p(l - 1, m)] + blm * P[index_p(l - 2, m)])
+			alm, blm = readcoeffs(coeff, l, m)
+			Plm[(l,m)] = alm * (costheta * Plm[(l - 1, m)] + blm * Plm[(l - 2, m)])
 		end
 	end
 
 	return P
 end
 
-function _computePlmcostheta!(::Type{T}, P::AbstractVector, costheta, sintheta, L, m::Nothing, coeff) where {T<:Real}
-	_computePlmcostheta!(T, P, costheta, sintheta, L, coeff)
+@propagate_inbounds function _computePlmcostheta!(P::AbstractVector, costheta, sintheta, L, m::Nothing, coeff)
+	_computePlmcostheta!(P, costheta, sintheta, L, coeff)
 end
 
-function _computePlmcostheta!(P::AbstractVector, costheta, sintheta, L, m, coeff)
-	T = promote_type(Float64, promote_type(typeof(costheta), eltype(coeff)))
-	_computePlmcostheta!(T, P, costheta, sintheta, L, m, coeff)
-end
-function _computePlmcostheta!(P::AbstractVector, costheta, sintheta, L, coeff)
-	T = promote_type(Float64, promote_type(typeof(costheta), eltype(coeff)))
-	_computePlmcostheta!(T, P, costheta, sintheta, L, coeff)
-end
-
-function Plmrecursion(l, m, costheta, Pmm, Pmp1m, coeff)
+@propagate_inbounds function Plmrecursion(l, m, costheta, Pmm, Pmp1m, coeff)
 	Plm2_m, Plm1_m = Pmm, Pmp1m
 
 	# Compute Plm using recursion over l at a fixed m, starting from l = m + 2
@@ -232,8 +204,10 @@ function Plmrecursion(l, m, costheta, Pmm, Pmp1m, coeff)
 	return Plm1_m
 end
 
-function _computePlmcostheta(::Type{T}, costheta, sintheta, l, m, coeff) where {T<:Real}
+@propagate_inbounds function _computePlmcostheta(costheta, sintheta, l, m, coeff)
 	0 <= m <= l || throw(ArgumentError("m = $m does not satisfy 0 ≤ m ≤ l = $l"))
+
+    T = _promotetype(costheta, sintheta, coeff)
 
 	Pmm = T(_invsqrt2pi)
 
@@ -256,16 +230,6 @@ function _computePlmcostheta(::Type{T}, costheta, sintheta, l, m, coeff) where {
 	Plm = Plmrecursion(l, m, costheta, Pmm, Pmp1m, coeff)
 end
 
-checksizesP(P, L, m::Integer, coeff::AbstractMatrix) = checksizesP(P, L, coeff)
-function checksizesP(P, L, coeff::AbstractMatrix)
-	L >= 0 || throw(ArgumentError("lmax = $L does not correspond to a valid mode"))
-	checksize(size(coeff, 2), sizeP(Int(L)))
-	checksize(length(P), sizeP(Int(L)))
-end
-function checksizesP(P, L, coeff::Nothing)
-	checksize(length(P), sizeP(Int(L)))
-end
-
 """
 	computePlmx!(P::AbstractVector{<:Real}, x::Real, lmax::Integer, coeff::AbstractMatrix)
 
@@ -284,17 +248,14 @@ Compute the set of normalized Associated Legendre Polynomials ``\\bar{P}_l^m(x)`
 and all ``l`` lying in ``|m| ≤ l ≤ l_\\mathrm{max}`` .
 """
 function computePlmx!(P::AbstractVector{<:Real}, x::Real, L::Integer, args...)
-	checksizesP(P, L, args...)
-
+	checksizesP(P, L)
 	-1 <= x <= 1 || throw(ArgumentError("x needs to lie in [-1,1]"))
-
-	_computePlmcostheta!(P, x, √(1-x^2), L, args...)
-
+	@inbounds _computePlmcostheta!(P, promote(x, √(1-x^2))..., L, args...)
 	return P
 end
 
 """
-	computePlmcostheta!(P::AbstractVector{<:Real}, θ::Real, lmax::Integer, coeff::AbstractMatrix)
+	computePlmcostheta!(P::AbstractVector{<:Real}, θ::Real, lmax::Integer, coeff)
 	computePlmcostheta!(P::AbstractVector{<:Real}, θ::SphericalHarmonics.Pole, lmax::Integer)
 
 Compute an entire set of normalized Associated Legendre Polynomials ``\\bar{P}_l^m(\\cos θ)``
@@ -303,7 +264,7 @@ using [`compute_coefficients`](@ref).
 
 See [`computePlmcostheta`](@ref) for the normalization used.
 
-	computePlmcostheta!(P::AbstractVector{<:Real}, θ::Real, lmax::Integer, m::Integer, coeff::AbstractMatrix)
+	computePlmcostheta!(P::AbstractVector{<:Real}, θ::Real, lmax::Integer, m::Integer, coeff)
 
 Compute the Associated Legendre Polynomials ``\\bar{P}_l^m(\\cos θ)`` for for the specified ``m``
 and all ``l`` lying in ``|m| ≤ l ≤ l_\\mathrm{max}``. The array `P` needs to be large enough to hold all the polynomials
@@ -311,51 +272,43 @@ for ``0 ≤ l ≤ l_\\mathrm{max}`` and ``0 ≤ m ≤ l``, as the recursive eval
 Pre-existing values in `P` may be overwritten, even for azimuthal orders not equal to ``m``.
 """
 function computePlmcostheta!(P::AbstractVector{<:Real}, θ::Real, L::Integer, args...)
-	checksizesP(P, L, args...)
-	_computePlmcostheta!(P, cos(θ), sin(θ), L, args...)
+	checksizesP(P, L)
+	@inbounds _computePlmcostheta!(P, promote(cos(θ), sin(θ), L)..., args...)
 	return P
 end
 
 # The following two methods are for ambiguity resolution
 function computePlmcostheta!(P::AbstractVector{<:Real}, θ::Pole, L::Integer, m::Integer, coeff)
-	checksize(length(P), sizeP(Int(L)))
+	checksizesP(P, L)
 	if !iszero(m)
 		fill!(P, zero(eltype(P)))
 		return P
 	end
-	computePlmcostheta!(P, θ, L)
+	@inbounds computePlmcostheta!(P, θ, L)
 	return P
 end
 function computePlmcostheta!(P::AbstractVector{<:Real}, θ::Pole, L::Integer, coeff)
 	computePlmcostheta!(P, θ, L)
 end
 
-function computePlmcostheta!(P::AbstractVector{<:Real}, ::NorthPole, L::Integer)
-	checksize(length(P), sizeP(Int(L)))
+function computePlmcostheta!(P::AbstractVector{T}, ::NorthPole, L::Integer) where {T<:Real}
+	checksizesP(P, L)
 	fill!(P, zero(eltype(P)))
-
-	T = promote_type(promote_type(Float64, eltype(P)), float(typeof(L)))
-
-	norm = T(_invsqrt2pi)
-
-	for l in ZeroTo(L)
-		P[index_p(l, 0)] = norm * √(T(2l + 1))
+    Plm = _wrapSHArray(P, L, ZeroTo)
+	@inbounds for l in 0:L
+		Plm[(l, 0)] = _invsqrt2pi * √(T(2l + 1))
 	end
 	return P
 end
 
-function computePlmcostheta!(P::AbstractVector{<:Real}, ::SouthPole, L::Integer)
-	checksize(length(P), sizeP(Int(L)))
-
+function computePlmcostheta!(P::AbstractVector{T}, ::SouthPole, L::Integer) where {T<:Real}
+	checksizesP(P, L)
 	fill!(P, zero(eltype(P)))
-
-	T = promote_type(promote_type(Float64, eltype(P)), float(typeof(L)))
-
-	norm = -T(_invsqrt2pi)
-
-	for l in ZeroTo(L)
-		norm *= -1
-		P[index_p(l, 0)] = norm * √(T(2l + 1))
+    Plm = _wrapSHArray(P, L, ZeroTo)
+	phase = 1
+	@inbounds for l in 0:L
+		Plm[(l, 0)] = phase * _invsqrt2pi * √(T(2l + 1))
+		phase *= -1
 	end
 	return P
 end
@@ -440,9 +393,7 @@ See [`computePlmcostheta`](@ref) for the specific choice of normalization used h
 """
 associatedLegendre(θ::Real; l::Integer, m::Integer, coeff = nothing) = associatedLegendre(θ, l, m, coeff)
 function associatedLegendre(θ::Real, l::Integer, m::Integer, coeff = nothing)
-	Tlm = promote_type(float(typeof(l)), float(typeof(m)))
-	T = promote_type(Tlm, float(typeof(θ)))
-	_computePlmcostheta(T, cos(θ), sin(θ), l, m, coeff)
+	_computePlmcostheta(cos(θ), sin(θ), l, m, coeff)
 end
 
 function associatedLegendre(θ::NorthPole, l::Integer, m::Integer, coeff = nothing)
@@ -481,6 +432,10 @@ function computePlmx(x::Real, L::Integer, m::Union{Integer, Nothing} = nothing)
 	return P
 end
 
+######################################################################################
+# Spherical Harmonics
+######################################################################################
+
 abstract type HarmonicType end
 struct RealHarmonics <: HarmonicType end
 struct ComplexHarmonics <: HarmonicType end
@@ -496,80 +451,95 @@ function phase(::ComplexHarmonics, ::Type{FullRange}, m, ϕ, norm, CSphase)
 	ep, em
 end
 
-function phase(::RealHarmonics, ::Type{ZeroTo}, m, ϕ, norm, CSphase)
-	cos(m*ϕ)
-end
+phase(::RealHarmonics, ::Type{ZeroTo}, m, ϕ, norm, CSphase) = cos(m*ϕ)
+phase(::ComplexHarmonics, ::Type{ZeroTo}, m, ϕ, norm, CSphase) = cis(m*ϕ) * norm
 
-function phase(::ComplexHarmonics, ::Type{ZeroTo}, m, ϕ, norm, CSphase)
-	cis(m*ϕ) * norm
-end
-
-function fill_m_maybenegm!(Y, P, L, m, ϕ, CSphase, ::Type{FullRange}, SHType)
+@propagate_inbounds function fill_m_maybenegm!(Y, P, L, m, ϕ, CSphase, ::Type{FullRange}, SHType)
 	m >= 0 || throw(ArgumentError("m must be ≥ 0"))
-
+    @assert L >= 0 "degree must be non-negative"
 	phasempos, phasemneg = phase(SHType, FullRange, m, ϕ, _invsqrt2, CSphase)
+
+    PS = _wrapSHArray(P, L, ZeroTo)
+    Ylm = _wrapSHArray(Y, L, FullRange)
 
 	for l in m:Int(L)
-		Plm = P[index_p(l, abs(m))]
-		Y[index_y(l, -m)] = phasemneg * Plm
-		Y[index_y(l,  m)] = phasempos * Plm
+		Plm = PS[(l, m)]
+		Ylm[(l, -m)] = phasemneg * Plm
+		Ylm[(l,  m)] = phasempos * Plm
 	end
 	return Y
 end
 
-function fill_m_maybenegm!(Y, P, L, m, ϕ, CSphase, ::Type{ZeroTo}, SHType)
-
+@propagate_inbounds function fill_m_maybenegm!(Y, P, L, m, ϕ, CSphase, ::Type{ZeroTo}, SHType)
+    m >= 0 || throw(ArgumentError("m must be ≥ 0"))
+    @assert L >= 0 "degree must be non-negative"
 	phasem = phase(SHType, ZeroTo, m, ϕ, _invsqrt2, CSphase)
 
+    PS = _wrapSHArray(P, L, ZeroTo)
+    Ylm = _wrapSHArray(Y, L, ZeroTo)
+
 	for l in abs(Int(m)):Int(L)
-		ind = index_p(l, m)
-		Y[ind] = phasem * P[ind]
+		Ylm[(l,m)] = phasem * PS[(l,m)]
 	end
 	return Y
 end
 
-function fill_m!(Y, P, L, m, ϕ, CSphase, ::Type{FullRange}, SHType::ComplexHarmonics)
+@propagate_inbounds function fill_m!(Y, P, L, m, ϕ, CSphase, ::Type{FullRange}, SHType::ComplexHarmonics)
+    @assert L >= 0 "degree must be non-negative"
 	phasempos, phasemneg = phase(SHType, FullRange, m, ϕ, _invsqrt2, CSphase)
 
+    PS = _wrapSHArray(P, L, ZeroTo)
+    Ylm = _wrapSHArray(Y, L, FullRange)
+
 	for l in abs(Int(m)):Int(L)
-		Plm = P[index_p(l, abs(m))]
+		Plm = PS[(l, abs(m))]
 		if m >= 0
-			Y[index_y(l, m)] = phasempos * Plm
+			Ylm[(l, m)] = phasempos * Plm
 		else
-			Y[index_y(l, m)] = (-1)^m * phasempos * Plm
+			Ylm[(l, m)] = (-1)^m * phasempos * Plm
 		end
 	end
 	return Y
 end
 
-function fill_m!(Y, P, L, m, ϕ, CSphase, ::Type{FullRange}, SHType::RealHarmonics)
-	C, S = phase(SHType, FullRange, m, ϕ, _invsqrt2, CSphase)
+@propagate_inbounds function fill_m!(Y, P, L, m, ϕ, CSphase, ::Type{FullRange}, SHType::RealHarmonics)
+	@assert L >= 0 "degree must be non-negative"
+    C, S = phase(SHType, FullRange, m, ϕ, _invsqrt2, CSphase)
+
+    PS = _wrapSHArray(P, L, ZeroTo)
+    Ylm = _wrapSHArray(Y, L, FullRange)
 
 	for l in abs(Int(m)):Int(L)
-		Plm = P[index_p(l, abs(m))]
+		Plm = PS[(l, abs(m))]
 		if m >= 0
-			Y[index_y(l, m)] = C * Plm
+			Ylm[(l, m)] = C * Plm
 		else
-			Y[index_y(l, m)] = S * Plm
+			Ylm[(l, m)] = S * Plm
 		end
 	end
 	return Y
 end
 
-function fill_m!(Y, P, L, m, ϕ, CSphase, ::Type{ZeroTo}, SHType)
+@propagate_inbounds function fill_m!(Y, P, L, m, ϕ, CSphase, ::Type{ZeroTo}, SHType)
 	m >= 0 || throw(ArgumentError("m must be ≥ 0"))
+    @assert L >= 0 "degree must be non-negative"
 
 	phasem = phase(SHType, ZeroTo, m, ϕ, _invsqrt2, CSphase)
+    PS = _wrapSHArray(P, L, ZeroTo)
+    Ylm = _wrapSHArray(Y, L, ZeroTo)
 
 	for l in Int(m):Int(L)
-		Y[index_y(l, m, ZeroTo)] = phasem * P[index_p(l, m)]
+		Ylm[(l, m)] = phasem * P[(l, m)]
 	end
 	return Y
 end
 
-function computeYlm_maybeallm!(Y, P, ϕ, L, ::Nothing, m_range, SHType)
-	for l in ZeroTo(L)
-		Y[index_y(l, 0, m_range)] = P[index_p(l, 0)] * _invsqrt2
+@propagate_inbounds function computeYlm_maybeallm!(Y, P, ϕ, L, ::Nothing, m_range, SHType)
+    @assert L >= 0 "degree must be non-negative"
+    PS = _wrapSHArray(P, L, ZeroTo)
+    Ylm = _wrapSHArray(Y, L, m_range)
+	for l in 0:Int(L)
+		Ylm[(l, 0)] = PS[(l, 0)] * _invsqrt2
 	end
 
 	CSphase = 1
@@ -579,12 +549,15 @@ function computeYlm_maybeallm!(Y, P, ϕ, L, ::Nothing, m_range, SHType)
 	end
 	return Y
 end
-function computeYlm_maybeallm!(Y, P, ϕ, L, m::Integer, m_range, SHType)
+@propagate_inbounds function computeYlm_maybeallm!(Y, P, ϕ, L, m::Integer, m_range, SHType)
+    @assert L >= 0 "degree must be non-negative"
 	-L <= m <= L || throw(ArgumentError("m = $m does not satisfy 0 ≤ |m| ≤ lmax = $L"))
 
+    PS = _wrapSHArray(P, L, ZeroTo)
+    Ylm = _wrapSHArray(Y, L, m_range)
 	if iszero(m)
-		for l in ZeroTo(L)
-			Y[index_y(l, 0, m_range)] = P[index_p(l, 0)] * _invsqrt2
+		for l in 0:Int(L)
+			Ylm[(l, 0)] = PS[(l, 0)] * _invsqrt2
 		end
 	else
 		fill_m!(Y, P, L, m, ϕ, (-1)^m, m_range, SHType)
@@ -623,7 +596,7 @@ function computeYlm!(Y::AbstractVector, P::AbstractVector{<:Real}, θ::Real,
 	checksize(length(Y), sizeY(Int(L), m_range))
 
 	fill!(Y, zero(eltype(Y)))
-	computeYlm_maybeallm!(Y, P, ϕ, L, m, m_range, SHType)
+	@inbounds computeYlm_maybeallm!(Y, P, ϕ, L, m, m_range, SHType)
 
 	return Y
 end
@@ -649,8 +622,11 @@ function computeYlm!(Y::AbstractVector, P::AbstractVector{<:Real}, θ::Pole,
 
 	fill!(Y, zero(eltype(Y)))
 
-	for l in ZeroTo(L)
-		Y[index_y(l, 0, m_range)] = P[index_p(l, 0)] * _invsqrt2
+    PS = _wrapSHArray(P, L, ZeroTo)
+    Ylm = _wrapSHArray(Y, L, m_range)
+
+	@inbounds for l in 0:L
+		Ylm[(l, 0)] = PS[(l, 0)] * _invsqrt2
 	end
 
 	return Y
@@ -838,10 +814,10 @@ and setting this to `RealHarmonics()` would evaluate real spherical harmonics. O
 # Example
 ```jldoctest
 julia> SphericalHarmonics.sphericalharmonic(π/3, π/3, l = 500, m = 250)
--0.1891010031219448 - 0.32753254516944336im
+-0.18910100312194328 - 0.32753254516944075im
 
 julia> SphericalHarmonics.sphericalharmonic(π/3, π/3, l = 500, m = 250, SHType = SphericalHarmonics.RealHarmonics())
--0.2674292032734113
+-0.26742920327340913
 ```
 """
 function sphericalharmonic(θ::Real, ϕ::Real; l::Integer, m::Integer,

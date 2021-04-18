@@ -15,7 +15,7 @@ The normalized associated Legendre polynomials for an angle `θ` for all `l` in 
 
 ```julia
 julia> P = computePlmcostheta(pi/2, lmax = 1)
-3-element SHArray(::Array{Float64,1}, (ML(0:1, 0:1),)):
+3-element SHArray(::Vector{Float64}, (ML(0:1, 0:1),)):
   0.3989422804014327
   4.231083042742082e-17
  -0.4886025119029199
@@ -35,7 +35,7 @@ Spherical harmonics for a colatitude `θ` and azimuth `ϕ` may be generated usin
 
 ```julia
 julia> Y = computeYlm(pi/3, 0, lmax = 1)
-4-element SHArray(::Array{Complex{Float64},1}, (ML(0:1, -1:1),)):
+4-element SHArray(::Vector{Complex{Float64}}, (ML(0:1, -1:1),)):
   0.2820947917738782 + 0.0im
   0.2992067103010745 - 0.0im
  0.24430125595146002 + 0.0im
@@ -59,8 +59,8 @@ Special angles `SphericalHarmonics.NorthPole()` and `SphericalHarmonics.SouthPol
 Arguments of `BigInt` and `BigFloat` types would increase the precision of the result.
 
 ```julia
-julia> Y = computeYlm(big(pi)/2, big(0), lmax = big(1)) # Arbitrary precision
-4-element SHArray(::Array{Complex{BigFloat},1}, (ML(0:1, -1:1),)):
+julia> Y = computeYlm(big(pi)/2, big(0), lmax = 1) # Arbitrary precision
+4-element SHArray(::Vector{Complex{BigFloat}}, (ML(0:1, -1:1),)):
     0.2820947917738781434740397257803862929220253146644994284220428608553212342207478 + 0.0im
     0.3454941494713354792652446460318896831393773703262433134867073548945156550201567 - 0.0im
  2.679783085063171668225419916118067917387251852939708540164955895366691604430101e-78 + 0.0im
@@ -73,7 +73,7 @@ For real functions it might be sufficient to compute only the functions for `m >
 
 ```julia
 julia> computeYlm(pi/3, 0, lmax = 1, m_range = SphericalHarmonics.ZeroTo)
-3-element SHArray(::Array{Complex{Float64},1}, (ML(0:1, 0:1),)):
+3-element SHArray(::Vector{Complex{Float64}}, (ML(0:1, 0:1),)):
   0.2820947917738782 + 0.0im
  0.24430125595146002 + 0.0im
  -0.2992067103010745 - 0.0im
@@ -85,7 +85,7 @@ It's also possible to compute real spherical harmonics by passing the flag `SHTy
 
 ```julia
 julia> Y = computeYlm(pi/3, pi/3, lmax = 1, SHType = SphericalHarmonics.RealHarmonics())
-4-element SHArray(::Array{Float64,1}, (ML(0:1, -1:1),)):
+4-element SHArray(::Vector{Float64}, (ML(0:1, -1:1),)):
   0.2820947917738782
  -0.3664518839271899
   0.24430125595146002
@@ -96,4 +96,16 @@ These are faster to evaluate and require less memory to store.
 
 # See also
 
-[FastTransforms.jl](https://github.com/JuliaApproximation/FastTransforms.jl): The function `FastTransforms.sphevaluate` is faster at evaluating real spherical harmonics.
+[FastTransforms.jl](https://github.com/JuliaApproximation/FastTransforms.jl): The function `FastTransforms.sphevaluate` is faster at evaluating real spherical harmonics for a single mode.
+
+```julia
+julia> @btime FastTransforms.sphevaluate($(big(pi)/3), $(big(pi)/3), 100, 100)
+  153.142 μs (1336 allocations: 72.64 KiB)
+-3.801739606943941485088961175328961189010502022112528054751517912248264631529766e-07
+
+julia> @btime SphericalHarmonics.sphericalharmonic($(big(pi)/3), $(big(pi)/3), 100, 100, SphericalHarmonics.RealHarmonics())
+  165.932 μs (1439 allocations: 78.01 KiB)
+-3.801739606943941485088961175328961189010502022112528054751517912248264631529107e-07
+```
+
+This difference might reduce in the future.
