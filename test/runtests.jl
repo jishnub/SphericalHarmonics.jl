@@ -167,8 +167,11 @@ end
     @test P == computePlmcostheta(NorthPole(), lmax)
 
     @testset "single m" begin
-        P2 = SphericalHarmonics.allocate_p(Float64, lmax)
         computePlmcostheta!(P, θ, lmax, coeff)
+        P2 = SphericalHarmonics.allocate_p(Float64, lmax)
+        P3 = SphericalHarmonics.allocate_p(Float64, lmax)
+        computePlmcostheta!(P3, θ, lmax, nothing, coeff)
+        @test P3 ≈ P
 
         for l in 0:lmax, m in 0:l
             computePlmcostheta!(P2, θ, l, m, coeff)

@@ -284,7 +284,7 @@ function computePlmcostheta!(P::AbstractVector{<:Real}, θ::Pole, L::Integer, m:
 		fill!(P, zero(eltype(P)))
 		return P
 	end
-	@inbounds computePlmcostheta!(P, θ, L)
+	computePlmcostheta!(P, θ, L)
 	return P
 end
 function computePlmcostheta!(P::AbstractVector{<:Real}, θ::Pole, L::Integer, coeff)
