@@ -3,6 +3,7 @@ using SphericalHarmonicModes
 using Test
 using HCubature
 using Aqua
+using FastTransforms
 
 import SphericalHarmonics: NorthPole, SouthPole, allocate_y, allocate_p, RealHarmonics, ComplexHarmonics
 
@@ -161,24 +162,24 @@ end
 @testset "computePlm!" begin
     lmax = 10
     θ = pi/3
-    coeff = SphericalHarmonics.compute_coefficients(lmax)
-    P = SphericalHarmonics.allocate_p(Float64, lmax)
-    computePlmcostheta!(P, θ, lmax, coeff)
+    coeff = SphericalHarmonics.compute_coefficients(lmax);
+    P = SphericalHarmonics.allocate_p(Float64, lmax);
+    computePlmcostheta!(P, θ, lmax, coeff);
 
     @test P == computePlmcostheta(θ, lmax)
 
-    computePlmcostheta!(P, NorthPole(), lmax, coeff)
+    computePlmcostheta!(P, NorthPole(), lmax, coeff);
     @test P == computePlmcostheta(NorthPole(), lmax)
 
     @testset "single m" begin
-        computePlmcostheta!(P, θ, lmax, coeff)
-        P2 = SphericalHarmonics.allocate_p(Float64, lmax)
-        P3 = SphericalHarmonics.allocate_p(Float64, lmax)
-        computePlmcostheta!(P3, θ, lmax, nothing, coeff)
+        computePlmcostheta!(P, θ, lmax, coeff);
+        P2 = SphericalHarmonics.allocate_p(Float64, lmax);
+        P3 = SphericalHarmonics.allocate_p(Float64, lmax);
+        computePlmcostheta!(P3, θ, lmax, nothing, coeff);
         @test P3 ≈ P
 
         for l in 0:lmax, m in 0:l
-            computePlmcostheta!(P2, θ, l, m, coeff)
+            computePlmcostheta!(P2, θ, l, m, coeff);
             for l2 in m:l
                 @test P2[(l2,m)] == P[(l2,m)]
             end
@@ -408,7 +409,7 @@ end
     end
 end
 
-@testset "accuracy" begin
+@testset "precision" begin
 
     isapproxdefault((x,y); kw...) = isapprox(ComplexF64(x), y; kw...)
 
@@ -733,21 +734,149 @@ end
 end
 
 @testset "cache" begin
-    S = SphericalHarmonics.cache(3);
-    @test S.lmax == 3
-    θ, ϕ = pi/3, pi/4
-    SphericalHarmonics.computePlmx!(S, cos(θ), 3)
-    @test S.P == SphericalHarmonics.computePlmx(cos(θ), lmax = 3)
-    computePlmcostheta!(S, θ, 3)
-    @test S.P == computePlmcostheta(θ, 3)
-    computeYlm!(S, θ, ϕ, 3)
-    @test S.Y == computeYlm(θ, ϕ, 3)
-    computePlmcostheta!(S, θ, 4)
-    @test S.lmax == 4
-    @test S.P == computePlmcostheta(θ, 4)
-    computeYlm!(S, θ, ϕ, 4)
-    @test S.Y == computeYlm(θ, ϕ, 4)
-    computeYlm!(S, θ, ϕ, 2)
-    Y2 = computeYlm(θ, ϕ, 2)
-    @test S.Y[1:length(Y2)] == Y2
+    @testset "FullRange, ComplexHarmonics" begin
+        S = SphericalHarmonics.cache(3);
+        @test S.lmax == 3
+        θ, ϕ = pi/3, pi/4
+        SphericalHarmonics.computePlmx!(S, cos(θ), 3)
+        @test S.P == SphericalHarmonics.computePlmx(cos(θ), lmax = 3)
+        computePlmcostheta!(S, θ, 3)
+        @test S.P == computePlmcostheta(θ, 3)
+        # This should be a no-op
+        computePlmcostheta!(S, θ, 3)
+        @test S.P == computePlmcostheta(θ, 3)
+        computeYlm!(S, θ, ϕ, 3)
+        @test S.Y == computeYlm(θ, ϕ, 3)
+        computePlmcostheta!(S, θ, 4)
+        @test S.lmax == 4
+        @test S.P == computePlmcostheta(θ, 4)
+        computeYlm!(S, θ, ϕ, 4)
+        @test S.Y == computeYlm(θ, ϕ, 4)
+        computeYlm!(S, θ, ϕ, 2)
+        Y2 = computeYlm(θ, ϕ, 2)
+        @test S.Y[1:length(Y2)] == Y2
+
+        computePlmcostheta!(S, NorthPole(), 4)
+        @test S.P.cosθ == cos(NorthPole())
+        @test S.P == computePlmcostheta(NorthPole(), 4)
+    end
+    @testset "ZeroTo, ComplexHarmonics" begin
+        S = SphericalHarmonics.cache(3, m_range = ZeroTo);
+        @test S.lmax == 3
+        θ, ϕ = pi/3, pi/4
+        SphericalHarmonics.computePlmx!(S, cos(θ), 3)
+        @test S.P == SphericalHarmonics.computePlmx(cos(θ), lmax = 3)
+        computePlmcostheta!(S, θ, 3)
+        @test S.P == computePlmcostheta(θ, 3)
+        # This should be a no-op
+        computePlmcostheta!(S, θ, 3)
+        @test S.P == computePlmcostheta(θ, 3)
+        computeYlm!(S, θ, ϕ, 3)
+        @test S.Y == computeYlm(θ, ϕ, lmax = 3, m_range = ZeroTo)
+        computePlmcostheta!(S, θ, 4)
+        @test S.lmax == 4
+        @test S.P == computePlmcostheta(θ, 4)
+        computeYlm!(S, θ, ϕ, 4)
+        @test S.Y == computeYlm(θ, ϕ, lmax = 4, m_range = ZeroTo)
+        computeYlm!(S, θ, ϕ, 2)
+        Y2 = computeYlm(θ, ϕ, lmax = 2, m_range = ZeroTo)
+        @test S.Y[1:length(Y2)] == Y2
+
+        computePlmcostheta!(S, NorthPole(), 4)
+        @test S.P.cosθ == cos(NorthPole())
+        @test S.P == computePlmcostheta(NorthPole(), 4)
+    end
+    @testset "FullRange, RealHarmonics" begin
+        S = SphericalHarmonics.cache(3, SHType = RealHarmonics());
+        @test S.lmax == 3
+        θ, ϕ = pi/3, pi/4
+        SphericalHarmonics.computePlmx!(S, cos(θ), 3)
+        @test S.P == SphericalHarmonics.computePlmx(cos(θ), lmax = 3)
+        # This should be a no-op
+        SphericalHarmonics.computePlmx!(S, cos(θ), 3)
+        @test S.P == SphericalHarmonics.computePlmx(cos(θ), lmax = 3)
+        computePlmx!(S, cos(θ), 4)
+        @test S.lmax == 4
+        @test S.P == computePlmx(cos(θ), lmax = 4)
+
+        S = SphericalHarmonics.cache(3, SHType = RealHarmonics());
+        computePlmcostheta!(S, θ, 3)
+        @test S.P == computePlmcostheta(θ, 3)
+        # This should be a no-op
+        computePlmcostheta!(S, θ, 3)
+        @test S.P == computePlmcostheta(θ, 3)
+        computeYlm!(S, θ, ϕ, 3)
+        @test S.Y == computeYlm(θ, ϕ, lmax = 3, SHType = RealHarmonics())
+
+        computePlmcostheta!(S, θ, 4)
+        @test S.lmax == 4
+        @test S.P == computePlmcostheta(θ, 4)
+        computeYlm!(S, θ, ϕ, 4)
+        @test S.Y == computeYlm(θ, ϕ, lmax = 4, SHType = RealHarmonics())
+        computeYlm!(S, θ, ϕ, 2)
+        Y2 = computeYlm(θ, ϕ, lmax = 2, SHType = RealHarmonics())
+        @test S.Y[1:length(Y2)] == Y2
+
+        computePlmcostheta!(S, NorthPole(), 4)
+        @test S.P.cosθ == cos(NorthPole())
+        @test S.P == computePlmcostheta(NorthPole(), 4)
+    end
+    @testset "ZeroTo, RealHarmonics" begin
+        S = SphericalHarmonics.cache(3, m_range = ZeroTo, SHType = RealHarmonics());
+        @test S.lmax == 3
+        θ, ϕ = pi/3, pi/4
+        SphericalHarmonics.computePlmx!(S, cos(θ), 3)
+        @test S.P == SphericalHarmonics.computePlmx(cos(θ), lmax = 3)
+        computePlmcostheta!(S, θ, 3)
+        @test S.P == computePlmcostheta(θ, 3)
+        # This should be a no-op
+        computePlmcostheta!(S, θ, 3)
+        @test S.P == computePlmcostheta(θ, 3)
+        computeYlm!(S, θ, ϕ, 3)
+        @test S.Y == computeYlm(θ, ϕ, lmax = 3, m_range = ZeroTo, SHType = RealHarmonics())
+        computePlmcostheta!(S, θ, 4)
+        @test S.lmax == 4
+        @test S.P == computePlmcostheta(θ, 4)
+        computeYlm!(S, θ, ϕ, 4)
+        @test S.Y == computeYlm(θ, ϕ, lmax = 4, m_range = ZeroTo, SHType = RealHarmonics())
+        computeYlm!(S, θ, ϕ, 2)
+        Y2 = computeYlm(θ, ϕ, lmax = 2, m_range = ZeroTo, SHType = RealHarmonics())
+        @test S.Y[1:length(Y2)] == Y2
+
+        computePlmcostheta!(S, NorthPole(), 4)
+        @test S.P.cosθ == cos(NorthPole())
+        @test S.P == computePlmcostheta(NorthPole(), 4)
+    end
+    @testset "show" begin
+        S = SphericalHarmonics.cache(3);
+        io = IOBuffer()
+        show(io, S)
+        s = String(take!(io))
+        s_exp = "$(SphericalHarmonics.SphericalHarmonicsCache)(Float64, 3, m_range = $(SphericalHarmonicModes.FullRange), SHType = $(SphericalHarmonics.ComplexHarmonics)())"
+        @test s == s_exp
+        summary(io, S.P)
+        s = String(take!(io))
+        s_exp = "10-element AssociatedLegendrePolynomials{Float64} for lmax = 3 (uninitialized)"
+        @test s == s_exp
+        θ = 0
+        computePlmcostheta!(S, θ, 3)
+        summary(io, S.P)
+        s = String(take!(io))
+        s_exp = "10-element AssociatedLegendrePolynomials{Float64} for lmax = 3 and cosθ = 1"
+        @test s == s_exp
+
+        S = SphericalHarmonics.cache(BigFloat, 3);
+        summary(io, S.P)
+        s = String(take!(io))
+        s_exp = "10-element AssociatedLegendrePolynomials{BigFloat} for lmax = 3 (uninitialized)"
+    end
+end
+
+@testset "comparison with FastTransforms" begin
+    θ, ϕ = pi/3, pi/3
+    Y = computeYlm(θ, ϕ, lmax = 100, SHType = SphericalHarmonics.RealHarmonics())
+    # ignore the phase
+    for l in 0:100, m in 0:l
+        @test abs(sphevaluate(θ, ϕ, l, m)) ≈ abs(Y[(l, m)])
+    end
 end
