@@ -7,7 +7,11 @@ using Aqua
 import SphericalHarmonics: NorthPole, SouthPole, allocate_y, allocate_p, RealHarmonics, ComplexHarmonics
 
 @testset "project quality" begin
-    Aqua.test_all(SphericalHarmonics, ambiguities = (recursive = false,))
+    if VERSION >= v"1.6"
+        Aqua.test_all(SphericalHarmonics, ambiguities = (recursive = false,))
+    else
+        Aqua.test_all(SphericalHarmonics, ambiguities = false)
+    end
 end
 
 @testset "allocate" begin
