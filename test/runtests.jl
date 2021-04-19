@@ -7,7 +7,11 @@ using Aqua
 import SphericalHarmonics: NorthPole, SouthPole, allocate_y, allocate_p, RealHarmonics, ComplexHarmonics
 
 @testset "project quality" begin
-    Aqua.test_all(SphericalHarmonics)
+    if VERSION >= v"1.6"
+        Aqua.test_all(SphericalHarmonics, ambiguities = (recursive = false,))
+    else
+        Aqua.test_all(SphericalHarmonics, ambiguities = false)
+    end
 end
 
 @testset "allocate" begin
@@ -726,4 +730,24 @@ end
             end
         end
     end
+end
+
+@testset "cache" begin
+    S = SphericalHarmonics.cache(3);
+    @test S.lmax == 3
+    θ, ϕ = pi/3, pi/4
+    SphericalHarmonics.computePlmx!(S, cos(θ), 3)
+    @test S.P == SphericalHarmonics.computePlmx(cos(θ), lmax = 3)
+    computePlmcostheta!(S, θ, 3)
+    @test S.P == computePlmcostheta(θ, 3)
+    computeYlm!(S, θ, ϕ, 3)
+    @test S.Y == computeYlm(θ, ϕ, 3)
+    computePlmcostheta!(S, θ, 4)
+    @test S.lmax == 4
+    @test S.P == computePlmcostheta(θ, 4)
+    computeYlm!(S, θ, ϕ, 4)
+    @test S.Y == computeYlm(θ, ϕ, 4)
+    computeYlm!(S, θ, ϕ, 2)
+    Y2 = computeYlm(θ, ϕ, 2)
+    @test S.Y[1:length(Y2)] == Y2
 end
