@@ -3,7 +3,6 @@ using SphericalHarmonicModes
 using Test
 using HCubature
 using Aqua
-using FastTransforms
 
 import SphericalHarmonics: NorthPole, SouthPole, allocate_y, allocate_p, RealHarmonics, ComplexHarmonics
 
@@ -869,14 +868,5 @@ end
         summary(io, S.P)
         s = String(take!(io))
         s_exp = "10-element AssociatedLegendrePolynomials{BigFloat} for lmax = 3 (uninitialized)"
-    end
-end
-
-@testset "comparison with FastTransforms" begin
-    θ, ϕ = pi/3, pi/3
-    Y = computeYlm(θ, ϕ, lmax = 100, SHType = SphericalHarmonics.RealHarmonics())
-    # ignore the phase
-    for l in 0:100, m in 0:l
-        @test abs(sphevaluate(θ, ϕ, l, m)) ≈ abs(Y[(l, m)])
     end
 end
