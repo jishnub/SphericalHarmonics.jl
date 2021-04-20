@@ -399,6 +399,13 @@ function computePlmx!(P::AbstractVector{<:Real}, x::Real, lmax::Integer, args...
     return P
 end
 
+"""
+    computePlmx!(S::SphericalHarmonicsCache, x::Real, [lmax::Integer])
+
+Compute an entire set of normalized Associated Legendre Polynomials ``\\bar{P}_ℓ^m(x)``
+using the pre-computed coefficients in `S`, and store the result in `S`.
+"""
+computePlmx!(S::SphericalHarmonicsCache, x::Real) = computePlmx!(S, x, S.lmax)
 function computePlmx!(S::SphericalHarmonicsCache, x::Real, lmax::Integer)
     compute_coefficients!(S, lmax)
     computePlmx!(S.P, x, lmax, S.C)
@@ -540,11 +547,18 @@ function _computePlmcostheta_alp!(P::AssociatedLegendrePolynomials, θ::Real, lm
     return P
 end
 
+"""
+    computePlmcostheta!(S::SphericalHarmonicsCache, θ::Real, [lmax::Integer])
+
+Compute an entire set of normalized Associated Legendre Polynomials ``\\bar{P}_ℓ^m(\\cos θ)``
+using the pre-computed coefficients in `S`, and store the result in `S`.
+"""
 function computePlmcostheta!(S::SphericalHarmonicsCache, θ::Real, lmax::Integer)
     compute_coefficients!(S, lmax)
     computePlmcostheta!(S.P, θ, lmax, S.C)
     return S.P
 end
+computePlmcostheta!(S::SphericalHarmonicsCache, θ::Real) = computePlmcostheta!(S, θ, S.lmax)
 
 """
     computePlmcostheta(θ::Real; lmax::Integer, [m::Integer])
@@ -852,11 +866,12 @@ function computeYlm!(Y::AbstractVector, P::AbstractVector{<:Real}, θ::Pole,
     return Y
 end
 
-function computeYlm!(S::SphericalHarmonicsCache{<:Any,M,SHT}, θ::Real, ϕ::Real, lmax::Integer, m::Union{Integer,Nothing} = nothing) where {M,SHT}
+function computeYlm!(S::SphericalHarmonicsCache{<:Any,M,SHT}, θ::Real, ϕ::Real, lmax::Integer) where {M,SHT}
     @assert lmax <= S.lmax "Plm for lmax = $lmax is not available, please run computePlmcostheta! first"
-    computeYlm!(S.Y, S.P, θ, ϕ, lmax, m, M, SHT())
+    computeYlm!(S.Y, S.P, θ, ϕ, lmax, nothing, M, SHT())
     return S.Y
 end
+computeYlm!(S::SphericalHarmonicsCache, θ::Real, ϕ::Real) = computeYlm!(S, θ, ϕ, S.lmax)
 
 """
     computeYlm!(Y::AbstractVector, θ::Real, ϕ::Real; lmax::Integer, [m::Integer] [m_range = SphericalHarmonics.FullRange], [SHType = SphericalHarmonics.ComplexHarmonics()])
