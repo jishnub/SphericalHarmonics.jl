@@ -17,6 +17,12 @@ abstract type HarmonicType end
 struct RealHarmonics <: HarmonicType end
 struct ComplexHarmonics <: HarmonicType end
 
+"""
+    SphericalHarmonicsCache
+
+Preallocate arrays of associated Legendre polynomials and spherical harmonics.
+Such an object may be allocated using [`cache`](@ref).
+"""
 mutable struct SphericalHarmonicsCache{T, M, SHT, C<:AbstractMatrix{<:Real}, PLM<:AbstractVector{<:Real}, YLM<:AbstractVector}
     lmax :: Int
     C :: C
@@ -399,6 +405,14 @@ function computePlmx!(P::AbstractVector{<:Real}, x::Real, lmax::Integer, args...
     return P
 end
 
+"""
+    computePlmx!(S::SphericalHarmonicsCache, x::Real, [lmax::Integer])
+
+Compute an entire set of normalized Associated Legendre Polynomials ``\\bar{P}_ℓ^m(x)``
+using the pre-computed coefficients in `S`, and store the result in `S`. If `lmax` is not provided,
+the value of `lmax` for which coefficients have been computed in `S` is used.
+"""
+computePlmx!(S::SphericalHarmonicsCache, x::Real) = computePlmx!(S, x, S.lmax)
 function computePlmx!(S::SphericalHarmonicsCache, x::Real, lmax::Integer)
     compute_coefficients!(S, lmax)
     computePlmx!(S.P, x, lmax, S.C)
@@ -540,11 +554,19 @@ function _computePlmcostheta_alp!(P::AssociatedLegendrePolynomials, θ::Real, lm
     return P
 end
 
+"""
+    computePlmcostheta!(S::SphericalHarmonicsCache, θ::Real, [lmax::Integer])
+
+Compute an entire set of normalized Associated Legendre Polynomials ``\\bar{P}_ℓ^m(\\cos θ)``
+using the pre-computed coefficients in `S`, and store the result in `S`. If `lmax` is not provided,
+the value of `lmax` for which coefficients have been computed in `S` is used.
+"""
 function computePlmcostheta!(S::SphericalHarmonicsCache, θ::Real, lmax::Integer)
     compute_coefficients!(S, lmax)
     computePlmcostheta!(S.P, θ, lmax, S.C)
     return S.P
 end
+computePlmcostheta!(S::SphericalHarmonicsCache, θ::Real) = computePlmcostheta!(S, θ, S.lmax)
 
 """
     computePlmcostheta(θ::Real; lmax::Integer, [m::Integer])
@@ -852,11 +874,25 @@ function computeYlm!(Y::AbstractVector, P::AbstractVector{<:Real}, θ::Pole,
     return Y
 end
 
-function computeYlm!(S::SphericalHarmonicsCache{<:Any,M,SHT}, θ::Real, ϕ::Real, lmax::Integer, m::Union{Integer,Nothing} = nothing) where {M,SHT}
-    @assert lmax <= S.lmax "Plm for lmax = $lmax is not available, please run computePlmcostheta! first"
-    computeYlm!(S.Y, S.P, θ, ϕ, lmax, m, M, SHT())
+"""
+    computeYlm!(S::SphericalHarmonicsCache, θ::Real, ϕ::Real, [lmax::Integer])
+
+Compute an entire set of spherical harmonics ``Y_{ℓ,m}(θ,ϕ)`` for ``0 ≤ ℓ ≤ ℓ_\\mathrm{max}`` using the
+pre-computed associated Legendre polynomials saved in `S`, and store the result in `S`. If `lmax` is not provided,
+the value of `lmax` for which associated Legendre polynomials have been computed in `S` is used.
+
+!!! note
+    This function assumes that the associated Legendre polynomials have been pre-computed, and does not perform
+    any check on their values. In general `computeYlm!(S::SphericalHarmonicsCache, θ, ϕ, lmax)` should only be
+    called after a preceeding call to `computePlmcostheta!(S, θ, lmax)` in order to obtain meaningful results.
+"""
+function computeYlm!(S::SphericalHarmonicsCache{<:Any,M,SHT}, θ::Real, ϕ::Real, lmax::Integer) where {M,SHT}
+    @assert lmax <= S.lmax "Plm for lmax = $lmax is not available, please run computePlmcostheta!(S, θ, lmax) first"
+    !S.P.initialized && throw(ArgumentError("please run computePlmcostheta!(S, θ, lmax) first"))
+    computeYlm!(S.Y, S.P, θ, ϕ, lmax, nothing, M, SHT())
     return S.Y
 end
+computeYlm!(S::SphericalHarmonicsCache, θ::Real, ϕ::Real) = computeYlm!(S, θ, ϕ, S.lmax)
 
 """
     computeYlm!(Y::AbstractVector, θ::Real, ϕ::Real; lmax::Integer, [m::Integer] [m_range = SphericalHarmonics.FullRange], [SHType = SphericalHarmonics.ComplexHarmonics()])
