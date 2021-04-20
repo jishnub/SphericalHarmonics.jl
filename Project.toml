@@ -10,7 +10,7 @@ SphericalHarmonicModes = "0e9554e2-b38b-11e9-16d7-9d9abfec665a"
 
 [compat]
 ElasticArrays = "1.2"
-FastTransforms = "0.12"
+FastTransforms = "0.7, 0.12"
 SphericalHarmonicArrays = "0.4.4"
 SphericalHarmonicModes = "0.4.7"
 julia = "1"
