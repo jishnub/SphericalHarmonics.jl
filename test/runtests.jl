@@ -3,6 +3,7 @@ using SphericalHarmonicModes
 using Test
 using HCubature
 using Aqua
+using LegendrePolynomials
 
 import SphericalHarmonics: NorthPole, SouthPole, allocate_y, allocate_p, RealHarmonics, ComplexHarmonics
 
@@ -886,5 +887,60 @@ end
         summary(io, S.P)
         s = String(take!(io))
         s_exp = "10-element AssociatedLegendrePolynomials{BigFloat} for lmax = 3 (uninitialized)"
+    end
+end
+
+@testset "Parity" begin
+    lmax = 10
+    S1 = SphericalHarmonics.cache(lmax)
+    S2 = SphericalHarmonics.cache(lmax)
+    for θ in LinRange(0, pi, 10)
+        P1 = computePlmcostheta!(S1, θ)
+        P2 = computePlmcostheta!(S2, pi - θ)
+        for l in 0:lmax, m in 0:l
+            @test isapprox(P2[(l,m)], (-1)^(l + m) * P1[(l,m)], atol = 1e-13, rtol = 1e-13)
+        end
+        for ϕ in LinRange(0, 2pi, 10)
+            Y1 = computeYlm!(S1, θ, ϕ)
+            Y2 = computeYlm!(S2, pi - θ, pi + ϕ)
+            for l in 0:lmax, m in -l:l
+                @test isapprox(Y2[(l,m)], (-1)^l * Y1[(l,m)], atol = 1e-13, rtol = 1e-13)
+            end
+        end
+    end
+end
+
+@testset "m = 0 Legendre" begin
+    # for m = 0, the spherical harmonics are normalized Legendre Polynomials and are purely real
+    lmax = 100
+    @testset "ComplexHarmonics" begin
+        S = SphericalHarmonics.cache(lmax)
+        LP = zeros(0:lmax)
+        for θ in LinRange(0, pi, 10)
+            LegendrePolynomials.collectPl!(LP, cos(θ), lmax = lmax)
+            computePlmcostheta!(S, θ)
+            for ϕ in LinRange(0, 2pi, 10)
+                computeYlm!(S, θ, ϕ)
+                for l in 0:lmax
+                    @test isapprox(imag(S.Y[(l,0)]), 0, atol = 1e-13)
+                    @test isapprox(S.Y[(l,0)], √((2l+1)/4pi) * LP[l], atol = 1e-13, rtol = 1e-13)
+                end
+            end
+        end
+    end
+    @testset "RealHarmonics" begin
+        S = SphericalHarmonics.cache(lmax, SHType = RealHarmonics())
+        LP = zeros(0:lmax)
+        for θ in LinRange(0, pi, 10)
+            LegendrePolynomials.collectPl!(LP, cos(θ), lmax = lmax)
+            computePlmcostheta!(S, θ)
+            for ϕ in LinRange(0, 2pi, 10)
+                computeYlm!(S, θ, ϕ)
+                for l in 0:lmax
+                    @test isapprox(imag(S.Y[(l,0)]), 0, atol = 1e-13)
+                    @test isapprox(S.Y[(l,0)], √((2l+1)/4pi) * LP[l], atol = 1e-13, rtol = 1e-13)
+                end
+            end
+        end
     end
 end
