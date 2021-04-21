@@ -40,7 +40,7 @@ Base.parent(P::AssociatedLegendrePolynomials) = P.P
 Base.size(P::AssociatedLegendrePolynomials) = size(parent(P))
 Base.axes(P::AssociatedLegendrePolynomials) = axes(parent(P))
 Base.IndexStyle(::Type{<:AssociatedLegendrePolynomials{<:Any, PLM}}) where {PLM} = IndexStyle(PLM)
-Base.getindex(P::AssociatedLegendrePolynomials, I...) = getindex(parent(P), I...)
+Base.@propagate_inbounds Base.getindex(P::AssociatedLegendrePolynomials, I...) = getindex(parent(P), I...)
 function Base.summary(io::IO, P::AssociatedLegendrePolynomials)
     print(io, "$(length(P))-element AssociatedLegendrePolynomials{$(eltype(P))} for lmax = $(Int(P.lmax))")
     if P.initialized
