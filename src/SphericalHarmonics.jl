@@ -429,7 +429,7 @@ function computePlmx!(P::AssociatedLegendrePolynomials, x::Real, lmax::Integer, 
         computePlmx!(parent(P), x, lmax, coeff)
         P.cosθ = x
     end
-    P.lmax = max(P.lmax, lmax)
+    P.lmax = lmax
     P.initialized = true
     return P
 end
@@ -549,7 +549,7 @@ function _computePlmcostheta_alp!(P::AssociatedLegendrePolynomials, θ::Real, lm
         computePlmcostheta!(parent(P), θ, lmax, args...)
         P.cosθ = cos(θ)
     end
-    P.lmax = max(P.lmax, lmax)
+    P.lmax = lmax
     P.initialized = true
     return P
 end

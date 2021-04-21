@@ -1,6 +1,6 @@
 name = "SphericalHarmonics"
 uuid = "c489a379-e885-57ff-9236-bd896d33c250"
-version = "0.1.8"
+version = "0.1.9"
 
 [deps]
 ElasticArrays = "fdbdab4c-e67f-52f5-8c3f-e7b388dad3d4"

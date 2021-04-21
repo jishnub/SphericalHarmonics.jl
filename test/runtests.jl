@@ -737,11 +737,15 @@ end
         S = SphericalHarmonics.cache(3);
         @test S.lmax == 3
         θ, ϕ = pi/3, pi/4
-        SphericalHarmonics.computePlmx!(S, cos(θ), 3)
-        @test S.P == SphericalHarmonics.computePlmx(cos(θ), lmax = 3)
+        SphericalHarmonics.computePlmx!(S, cos(θ), 1)
+        @test S.P.lmax == 1
+        P2 = SphericalHarmonics.computePlmx(cos(θ), lmax = 1)
+        @test S.P[1:length(P2)] == P2
         SphericalHarmonics.computePlmx!(S, cos(2θ))
+        @test S.P.lmax == S.lmax
         @test S.P == SphericalHarmonics.computePlmx(cos(2θ), lmax = 3)
         computePlmcostheta!(S, θ, 3)
+        @test S.lmax == 3
         @test S.P == computePlmcostheta(θ, lmax = 3)
         # This should be a no-op
         computePlmcostheta!(S, θ, 3)
