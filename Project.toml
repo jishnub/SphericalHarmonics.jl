@@ -11,15 +11,19 @@ SphericalHarmonicModes = "0e9554e2-b38b-11e9-16d7-9d9abfec665a"
 [compat]
 ElasticArrays = "1.2"
 LegendrePolynomials = "0.3"
+OffsetArrays = "1"
 SphericalHarmonicArrays = "0.4.4"
 SphericalHarmonicModes = "0.4.7"
+WignerD = "0.1"
 julia = "1"
 
 [extras]
 Aqua = "4c88cf16-eb10-579e-8560-4a9242c79595"
 HCubature = "19dc6840-f33b-545b-b366-655c7e3ffd49"
 LegendrePolynomials = "3db4a2ba-fc88-11e8-3e01-49c72059a882"
+OffsetArrays = "6fe1bfb0-de20-5000-8ca7-80f57d26f881"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+WignerD = "87c4ff3e-34df-11e9-37a7-516cea4e0402"
 
 [targets]
-test = ["Aqua", "HCubature", "LegendrePolynomials", "Test"]
+test = ["Aqua", "HCubature", "LegendrePolynomials", "OffsetArrays", "Test", "WignerD"]

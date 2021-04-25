@@ -4,6 +4,8 @@ using Test
 using HCubature
 using Aqua
 using LegendrePolynomials
+using WignerD
+using OffsetArrays
 
 import SphericalHarmonics: NorthPole, SouthPole, allocate_y, allocate_p, RealHarmonics, ComplexHarmonics
 
@@ -939,6 +941,60 @@ end
                 for l in 0:lmax
                     @test isapprox(imag(S.Y[(l,0)]), 0, atol = 1e-13)
                     @test isapprox(S.Y[(l,0)], √((2l+1)/4pi) * LP[l], atol = 1e-13, rtol = 1e-13)
+                end
+            end
+        end
+    end
+end
+
+@testset "rotation of coordinates" begin
+    # Ylm(θ, ϕ) = Yl0(0, 0) D^l_{0,-m}(0, θ, ϕ)
+    lmax = 10
+    S = SphericalHarmonics.cache(lmax);
+    Dvec = OffsetArray([zeros(ComplexF64, 2l+1, 2l+1) for l in 0:lmax], 0:lmax);
+    Jyvec = OffsetArray([zeros(ComplexF64, 2l+1, 2l+1) for l in 0:lmax], 0:lmax);
+    @testset "NorthPole" begin
+        Yl0NP = computeYlm(NorthPole(), 0, lmax = lmax)
+        for θ in LinRange(0, pi, 10)
+            computePlmcostheta!(S, θ)
+            for ϕ in LinRange(0, 2pi, 10)
+                Ylmθϕ = computeYlm!(S, θ, ϕ)
+                for l in 0:lmax
+                    Dp = wignerD!(Dvec[l], l, 0, θ, ϕ, Jyvec[l])
+                    D = OffsetArray(Dp, -l:l, -l:l)
+                    for m in -l:l
+                        @test isapprox(Ylmθϕ[(l,m)], Yl0NP[(l,0)] * D[0,-m], atol = 1e-13, rtol = 1e-8)
+                    end
+                end
+            end
+        end
+    end
+    @testset "arbitrary point" begin
+        # We represent an arbitrary point in two coordinate systems
+        # We assume that it has coordinates (θ1,ϕ1) in the first frame and (θ2,ϕ2) in the second frame
+        # The frames may be shown to be related through S2 = Rz(ϕ1)Ry(θ1-θ2)Rz(-ϕ2) S1,
+        # where Ri(ω) represents a rotation about the axis i by an angle ω.
+        # We note that the rotation operator may be represented as D = exp(-iαJz)exp(-iβJy)exp(-iγJz)
+        # Comparing, we obtain α = ϕ1, β = θ1-θ2, γ = -ϕ2
+        # The Spherical harmonics transform through Ylm(n2) = ∑_m′ conj(D^l_{m,m′}(-γ,-β,-α)) Ylm(n1)
+        # Substituting, we obtain the matrix conj(D^l_{m,m′}(ϕ2,θ2-θ1,-ϕ1))
+        # We note that choosing (θ1,ϕ1) = (0,0) in this gives us the matrix conj(D^l_{m,m′}(ϕ2,θ2,0)),
+        # which, using symmetries, reduces to the previous case with the point at the north pole
+
+        θ1, ϕ1 = pi/6, pi/3
+
+        Y1lm = computeYlm(θ1, ϕ1, lmax = lmax)
+        for θ2 in LinRange(0, pi, 10)
+            computePlmcostheta!(S, θ2)
+            for ϕ2 in LinRange(0, 2pi, 10)
+                Ylmθϕ = computeYlm!(S, θ2, ϕ2)
+                for l in 0:lmax
+                    Dp = wignerD!(Dvec[l], l, ϕ2, θ2-θ1, -ϕ1, Jyvec[l])
+                    D = OffsetArray(Dp, -l:l, -l:l)
+                    for m in -l:l
+                        rotY1lm = sum(conj(D[m, m′]) * Y1lm[(l,m′)] for m′ = -l:l)
+                        @test isapprox(Ylmθϕ[(l,m)], rotY1lm, atol = 1e-13, rtol = 1e-8)
+                    end
                 end
             end
         end
