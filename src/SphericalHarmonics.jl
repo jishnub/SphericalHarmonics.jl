@@ -406,7 +406,7 @@ function computePlmx!(P::AbstractVector{<:Real}, x::Real, lmax::Integer, args...
 end
 
 """
-    computePlmx!(S::SphericalHarmonicsCache, x::Real, [lmax::Integer = S.lmax])
+    computePlmx!(S::SphericalHarmonicsCache, x::Real, [lmax::Integer])
 
 Compute an entire set of normalized Associated Legendre Polynomials ``\\bar{P}_ℓ^m(x)``
 using the pre-computed coefficients in `S`, and store the result in `S`. If `lmax` is not provided,
@@ -554,7 +554,7 @@ function _computePlmcostheta_alp!(P::AssociatedLegendrePolynomials, θ::Real, lm
 end
 
 """
-    computePlmcostheta!(S::SphericalHarmonicsCache, θ::Real, [lmax::Integer = S.lmax])
+    computePlmcostheta!(S::SphericalHarmonicsCache, θ::Real, [lmax::Integer])
 
 Compute an entire set of normalized Associated Legendre Polynomials ``\\bar{P}_ℓ^m(\\cos θ)``
 using the pre-computed coefficients in `S`, and store the result in `S`. If `lmax` is not provided,
@@ -873,7 +873,7 @@ function computeYlm!(Y::AbstractVector, P::AbstractVector{<:Real}, θ::Pole,
 end
 
 """
-    computeYlm!(S::SphericalHarmonicsCache, θ::Real, ϕ::Real, [lmax::Integer = S.lmax])
+    computeYlm!(S::SphericalHarmonicsCache, θ::Real, ϕ::Real, [lmax::Integer])
 
 Compute an entire set of spherical harmonics ``Y_{ℓ,m}(θ,ϕ)`` for ``0 ≤ ℓ ≤ ℓ_\\mathrm{max}`` using the
 pre-computed associated Legendre polynomials saved in `S`, and store the result in `S`. If `lmax` is not provided,
