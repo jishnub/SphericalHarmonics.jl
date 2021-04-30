@@ -23,7 +23,7 @@ struct ComplexHarmonics <: HarmonicType end
 Preallocate arrays of associated Legendre polynomials and spherical harmonics.
 Such an object may be allocated using [`cache`](@ref).
 """
-mutable struct SphericalHarmonicsCache{T, M, SHT, C<:AbstractMatrix{<:Real}, PLM<:AbstractVector{<:Real}, YLM<:AbstractVector}
+mutable struct SphericalHarmonicsCache{T, M, SHT, C<:AbstractMatrix{<:Real}, PLM<:AbstractVector, YLM<:AbstractVector}
     lmax :: Int
     C :: C
     P :: PLM
@@ -511,7 +511,7 @@ function _computePlmcostheta_range!(P::AbstractVector, θ::Pole, l_range::Abstra
     return P
 end
 
-function _computePlmcostheta_m0_range!(P::AbstractVector{T}, ::NorthPole, l_range::AbstractUnitRange{<:Integer}) where {T<:Real}
+function _computePlmcostheta_m0_range!(P::AbstractVector{T}, ::NorthPole, l_range::AbstractUnitRange{<:Integer}) where {T}
     lmin, lmax = map(Int, extrema(l_range))
     checksizesP(P, lmax)
     Plm = _wrapSHArray(P, lmax, ZeroTo)
@@ -521,7 +521,7 @@ function _computePlmcostheta_m0_range!(P::AbstractVector{T}, ::NorthPole, l_rang
     return P
 end
 
-function _computePlmcostheta_m0_range!(P::AbstractVector{T}, ::SouthPole, l_range::AbstractUnitRange{<:Integer}) where {T<:Real}
+function _computePlmcostheta_m0_range!(P::AbstractVector{T}, ::SouthPole, l_range::AbstractUnitRange{<:Integer}) where {T}
     lmin, lmax = map(Int, extrema(l_range))
     checksizesP(P, lmax)
     fill!(P, zero(eltype(P)))
