@@ -127,7 +127,10 @@ Allocate an array large enough to store an entire set of spherical harmonics
 allocate_y(T::Type, lmax::Integer, m_range = FullRange) = SHArray{T,1}(undef, (ML(ZeroTo(lmax), m_range),))
 allocate_y(lmax::Integer, m_range = FullRange) = allocate_y(ComplexF64, lmax, m_range)
 
-eltypeY(::Type{R}, ::ComplexHarmonics) where {R} = Complex{R}
+# This method uses the somewhat complicated promote_type mechanism instead of complex(R), as
+# some types such as Dual numbers currently do not have complex(R) defined for them.
+# We effectively evaluate typeof(zero(R) * im) instead.
+eltypeY(::Type{R}, ::ComplexHarmonics) where {R} = promote_type(R, complex(Bool))
 eltypeY(::Type{R}, ::RealHarmonics) where {R} = R
 
 @doc raw"""
@@ -381,7 +384,7 @@ end
 end
 
 """
-    computePlmx!(P::AbstractVector{<:Real}, x::Real, lmax::Integer, coeff::AbstractMatrix)
+    computePlmx!(P::AbstractVector, x, lmax::Integer, coeff::AbstractMatrix)
 
 Compute an entire set of normalized Associated Legendre Polynomials ``\\bar{P}_ℓ^m(x)``
 using the given coefficients, and store in the array `P`.
@@ -392,12 +395,12 @@ The argument `x` needs to lie in ``-1 ≤ x ≤ 1``. The function implicitly ass
 
 See [`computePlmcostheta`](@ref) for the normalization used.
 
-    computePlmx!(P::AbstractVector{<:Real}, x::Real, lmax::Integer, m::Integer, coeff::AbstractMatrix)
+    computePlmx!(P::AbstractVector, x, lmax::Integer, m::Integer, coeff::AbstractMatrix)
 
 Compute the set of normalized Associated Legendre Polynomials ``\\bar{P}_ℓ^m(x)`` for for the specified ``m``
 and all ``ℓ`` lying in ``|m| ≤ ℓ ≤ ℓ_\\mathrm{max}`` .
 """
-function computePlmx!(P::AbstractVector{<:Real}, x::Real, lmax::Integer, args...)
+function computePlmx!(P::AbstractVector, x, lmax::Integer, args...)
     @assert lmax >= 0 "degree must be non-negative"
     -1 <= x <= 1 || throw(DomainError("x", "The argument to associated Legendre polynomials must satisfy -1 <= x <= 1"))
     fill!(P, zero(eltype(P)))
@@ -406,18 +409,18 @@ function computePlmx!(P::AbstractVector{<:Real}, x::Real, lmax::Integer, args...
 end
 
 """
-    computePlmx!(S::SphericalHarmonicsCache, x::Real, [lmax::Integer])
+    computePlmx!(S::SphericalHarmonicsCache, x, [lmax::Integer])
 
 Compute an entire set of normalized Associated Legendre Polynomials ``\\bar{P}_ℓ^m(x)``
 using the pre-computed coefficients in `S`, and store the result in `S`. If `lmax` is not provided,
 the value of `lmax` for which coefficients have been computed in `S` is used.
 """
-function computePlmx!(S::SphericalHarmonicsCache, x::Real, lmax::Integer = S.lmax)
+function computePlmx!(S::SphericalHarmonicsCache, x, lmax::Integer = S.lmax)
     compute_coefficients!(S, lmax)
     computePlmx!(S.P, x, lmax, S.C)
     return S.P
 end
-function computePlmx!(P::AssociatedLegendrePolynomials, x::Real, lmax::Integer, coeff::Union{AbstractMatrix,Nothing} = nothing)
+function computePlmx!(P::AssociatedLegendrePolynomials, x, lmax::Integer, coeff::Union{AbstractMatrix,Nothing} = nothing)
     @assert lmax >= 0 "degree must be non-negative"
     -1 <= x <= 1 || throw(DomainError("x", "The argument to associated Legendre polynomials must satisfy -1 <= x <= 1"))
     if P.initialized && P.cosθ == x && P.lmax >= lmax
@@ -432,7 +435,7 @@ function computePlmx!(P::AssociatedLegendrePolynomials, x::Real, lmax::Integer, 
     P.initialized = true
     return P
 end
-function _computePlmx_range!(P::AbstractVector{<:Real}, x::Real, l_range::AbstractUnitRange{<:Integer}, args...)
+function _computePlmx_range!(P::AbstractVector, x, l_range::AbstractUnitRange{<:Integer}, args...)
     lmin, lmax = map(Int, extrema(l_range))
     checksizesP(P, lmax)
     cosθ, sinθ  = promote(x, √(1-x^2))
@@ -441,8 +444,8 @@ function _computePlmx_range!(P::AbstractVector{<:Real}, x::Real, l_range::Abstra
 end
 
 """
-    computePlmx(x::Real; lmax::Integer, [m::Integer])
-    computePlmx(x::Real, lmax::Integer, [m::Integer])
+    computePlmx(x; lmax::Integer, [m::Integer])
+    computePlmx(x, lmax::Integer, [m::Integer])
 
 Compute an entire set of normalized Associated Legendre Polynomials ``\\bar{P}_ℓ^m(x)`` where
 ``0 ≤ ℓ ≤ ℓ_\\mathrm{max}`` and ``0 ≤ m ≤ ℓ``. If `m` is provided then only the polynomials for that
@@ -451,8 +454,8 @@ azimuthal order are computed.
 The argument `x` needs to lie in ``-1 ≤ x ≤ 1``. The function implicitly assumes that
 ``x = \\cos(\\theta)`` where ``0 ≤ \\theta ≤ π``.
 """
-computePlmx(x::Real; lmax::Integer, m::Union{Integer, Nothing} = nothing) = computePlmx(x, lmax, m)
-function computePlmx(x::Real, lmax::Integer, m::Union{Integer, Nothing} = nothing)
+computePlmx(x; lmax::Integer, m::Union{Integer, Nothing} = nothing) = computePlmx(x, lmax, m)
+function computePlmx(x, lmax::Integer, m::Union{Integer, Nothing} = nothing)
     P = allocate_p(float(typeof(x)), lmax)
     coeff = compute_coefficients(lmax, m)
     _applymaybeallm(computePlmx!, P, x, lmax, m, coeff)
@@ -460,8 +463,8 @@ function computePlmx(x::Real, lmax::Integer, m::Union{Integer, Nothing} = nothin
 end
 
 """
-    computePlmcostheta!(P::AbstractVector{<:Real}, θ::Real, lmax::Integer, coeff)
-    computePlmcostheta!(P::AbstractVector{<:Real}, θ::SphericalHarmonics.Pole, lmax::Integer)
+    computePlmcostheta!(P::AbstractVector, θ, lmax::Integer, coeff)
+    computePlmcostheta!(P::AbstractVector, θ::SphericalHarmonics.Pole, lmax::Integer)
 
 Compute an entire set of normalized Associated Legendre Polynomials ``\\bar{P}_ℓ^m(\\cos θ)``
 using the given coefficients, and store in the array `P`. The matrix `coeff` may be computed
@@ -469,19 +472,19 @@ using [`compute_coefficients`](@ref).
 
 See [`computePlmcostheta`](@ref) for the normalization used.
 
-    computePlmcostheta!(P::AbstractVector{<:Real}, θ::Real, lmax::Integer, m::Integer, coeff)
+    computePlmcostheta!(P::AbstractVector, θ, lmax::Integer, m::Integer, coeff)
 
 Compute the Associated Legendre Polynomials ``\\bar{P}_ℓ^m(\\cos θ)`` for for the specified ``m``
 and all ``ℓ`` lying in ``|m| ≤ ℓ ≤ ℓ_\\mathrm{max}``. The array `P` needs to be large enough to hold all the polynomials
 for ``0 ≤ ℓ ≤ ℓ_\\mathrm{max}`` and ``0 ≤ m ≤ ℓ``, as the recursive evaluation requires the computation of extra elements.
 Pre-existing values in `P` may be overwritten, even for azimuthal orders not equal to ``m``.
 """
-function computePlmcostheta!(P::AbstractVector{<:Real}, θ::Real, lmax, args...)
+function computePlmcostheta!(P::AbstractVector, θ, lmax, args...)
     fill!(P, zero(eltype(P)))
     _computePlmcostheta_range!(P, θ, 0:lmax, args...)
     return P
 end
-function _computePlmcostheta_range!(P::AbstractVector{<:Real}, θ::Real, l_range::AbstractUnitRange{<:Integer}, args...)
+function _computePlmcostheta_range!(P::AbstractVector, θ, l_range::AbstractUnitRange{<:Integer}, args...)
     lmin, lmax = map(Int, extrema(l_range))
     checksizesP(P, lmax)
     cosθ, sinθ  = promote(cos(θ), sin(θ))
@@ -489,12 +492,12 @@ function _computePlmcostheta_range!(P::AbstractVector{<:Real}, θ::Real, l_range
     return P
 end
 
-function computePlmcostheta!(P::AbstractVector{<:Real}, θ::Pole, lmax, args...)
+function computePlmcostheta!(P::AbstractVector, θ::Pole, lmax, args...)
     fill!(P, zero(eltype(P)))
     _computePlmcostheta_range!(P, θ, 0:lmax, args...)
     return P
 end
-function _computePlmcostheta_range!(P::AbstractVector{<:Real}, θ::Pole, l_range::AbstractUnitRange{<:Integer}, m::Integer, args...)
+function _computePlmcostheta_range!(P::AbstractVector, θ::Pole, l_range::AbstractUnitRange{<:Integer}, m::Integer, args...)
     lmin, lmax = map(Int, extrema(l_range))
     checksizesP(P, lmax)
     if !iszero(m)
@@ -503,7 +506,7 @@ function _computePlmcostheta_range!(P::AbstractVector{<:Real}, θ::Pole, l_range
     _computePlmcostheta_m0_range!(P, θ, lmin:lmax)
     return P
 end
-function _computePlmcostheta_range!(P::AbstractVector{<:Real}, θ::Pole, l_range::AbstractUnitRange{<:Integer}, args...)
+function _computePlmcostheta_range!(P::AbstractVector, θ::Pole, l_range::AbstractUnitRange{<:Integer}, args...)
     _computePlmcostheta_m0_range!(P, θ, l_range)
     return P
 end
@@ -535,11 +538,11 @@ function computePlmcostheta!(P::AssociatedLegendrePolynomials, θ::Pole, lmax, a
     _computePlmcostheta_alp!(P, θ, lmax, args...)
     return P
 end
-function computePlmcostheta!(P::AssociatedLegendrePolynomials, θ::Real, lmax, args...)
+function computePlmcostheta!(P::AssociatedLegendrePolynomials, θ, lmax, args...)
     _computePlmcostheta_alp!(P, θ, lmax, args...)
     return P
 end
-function _computePlmcostheta_alp!(P::AssociatedLegendrePolynomials, θ::Real, lmax, args...)
+function _computePlmcostheta_alp!(P::AssociatedLegendrePolynomials, θ, lmax, args...)
     if P.initialized && P.cosθ == cos(θ) && P.lmax >= lmax
         return P
     elseif P.initialized && P.cosθ == cos(θ) && P.lmax < lmax
@@ -554,21 +557,21 @@ function _computePlmcostheta_alp!(P::AssociatedLegendrePolynomials, θ::Real, lm
 end
 
 """
-    computePlmcostheta!(S::SphericalHarmonicsCache, θ::Real, [lmax::Integer])
+    computePlmcostheta!(S::SphericalHarmonicsCache, θ, [lmax::Integer])
 
 Compute an entire set of normalized Associated Legendre Polynomials ``\\bar{P}_ℓ^m(\\cos θ)``
 using the pre-computed coefficients in `S`, and store the result in `S`. If `lmax` is not provided,
 the value of `lmax` for which coefficients have been computed in `S` is used.
 """
-function computePlmcostheta!(S::SphericalHarmonicsCache, θ::Real, lmax::Integer = S.lmax)
+function computePlmcostheta!(S::SphericalHarmonicsCache, θ, lmax::Integer = S.lmax)
     compute_coefficients!(S, lmax)
     computePlmcostheta!(S.P, θ, lmax, S.C)
     return S.P
 end
 
 """
-    computePlmcostheta(θ::Real; lmax::Integer, [m::Integer])
-    computePlmcostheta(θ::Real, lmax::Integer, [m::Integer])
+    computePlmcostheta(θ; lmax::Integer, [m::Integer])
+    computePlmcostheta(θ, lmax::Integer, [m::Integer])
 
 Compute an entire set of normalized Associated Legendre Polynomials ``\\bar{P}_ℓ^m(\\cos θ)`` where
 ``0 ≤ ℓ ≤ ℓ_\\mathrm{max}`` and ``0 ≤ m ≤ ℓ`` for colatitude ``\\theta``. If `m` is provided then only the
@@ -620,7 +623,7 @@ julia> P = computePlmcostheta(big(pi)/2, lmax = 1)
  -0.4886025119029199215863846228383470045758856081942277021382431574458410003616367
 ```
 """
-computePlmcostheta(θ::Real; lmax::Integer, m::Union{Integer, Nothing} = nothing) = computePlmcostheta(θ, lmax, m)
+computePlmcostheta(θ; lmax::Integer, m::Union{Integer, Nothing} = nothing) = computePlmcostheta(θ, lmax, m)
 
 _applymaybeallm(f, P, θ, lmax, m::Nothing, coeff...) = f(P, θ, lmax, coeff...)
 _applymaybeallm(f, P, θ, lmax, m, coeff...) = f(P, θ, lmax, m, coeff...)
@@ -628,7 +631,7 @@ _applymaybeallm(f, P, θ, lmax, m, coeff...) = f(P, θ, lmax, m, coeff...)
 _maybecomputecoeff(lmax, θ::Pole, m) = nothing
 _maybecomputecoeff(lmax, θ, m) = compute_coefficients(promote_type(Float64, float(typeof(θ))), Int(lmax), m)
 
-function computePlmcostheta(θ::Real, lmax::Integer, m::Union{Integer, Nothing} = nothing)
+function computePlmcostheta(θ, lmax::Integer, m::Union{Integer, Nothing} = nothing)
     coeff = _maybecomputecoeff(lmax, θ, m)
     P = allocate_p(float(typeof(θ)), lmax)
     _applymaybeallm(computePlmcostheta!, P, θ, lmax, m, coeff)
@@ -636,15 +639,15 @@ function computePlmcostheta(θ::Real, lmax::Integer, m::Union{Integer, Nothing} 
 end
 
 @doc raw"""
-    SphericalHarmonics.associatedLegendre(θ::Real; l::Integer, m::Integer, [coeff = nothing])
+    SphericalHarmonics.associatedLegendre(θ; l::Integer, m::Integer, [coeff = nothing])
 
 Evaluate the normalized associated Legendre polynomial ``\bar{P}_ℓ^m(\cos \theta)``.
 Optionally a matrix of coefficients returned by [`compute_coefficients`](@ref) may be provided.
 
 See [`computePlmcostheta`](@ref) for the specific choice of normalization used here.
 """
-associatedLegendre(θ::Real; l::Integer, m::Integer, coeff = nothing) = associatedLegendre(θ, l, m, coeff)
-function associatedLegendre(θ::Real, l::Integer, m::Integer, coeff = nothing)
+associatedLegendre(θ; l::Integer, m::Integer, coeff = nothing) = associatedLegendre(θ, l, m, coeff)
+function associatedLegendre(θ, l::Integer, m::Integer, coeff = nothing)
     _computePlmcostheta(cos(θ), sin(θ), l, m, coeff)
 end
 
@@ -797,8 +800,8 @@ _maybeabs(::Nothing) = nothing
 _maybeabs(m::Integer) = abs(m)
 
 """
-    computeYlm!(Y::AbstractVector, P::AbstractVector{<:Real}, θ::Real, ϕ::Real; lmax::Integer, [m::Integer], [m_range = SphericalHarmonics.FullRange], [SHType = SphericalHarmonics.ComplexHarmonics()])
-    computeYlm!(Y::AbstractVector, P::AbstractVector{<:Real}, θ::Real, ϕ::Real, lmax::Integer, [m::Integer, [m_range = SphericalHarmonics.FullRange, [SHType = SphericalHarmonics.ComplexHarmonics()]]])
+    computeYlm!(Y::AbstractVector, P::AbstractVector, θ, ϕ; lmax::Integer, [m::Integer], [m_range = SphericalHarmonics.FullRange], [SHType = SphericalHarmonics.ComplexHarmonics()])
+    computeYlm!(Y::AbstractVector, P::AbstractVector, θ, ϕ, lmax::Integer, [m::Integer, [m_range = SphericalHarmonics.FullRange, [SHType = SphericalHarmonics.ComplexHarmonics()]]])
 
 Compute an entire set of spherical harmonics ``Y_{ℓ,m}(θ,ϕ)``
 using the precomputed associated Legendre Polynomials ``\\bar{P}_ℓ^m(\\cos θ)``,
@@ -816,8 +819,8 @@ To compute real spherical harmonics, set this to `RealHarmonics()`.
     This function assumes that the associated Legendre Polynomials have been pre-computed, and does not perform any
     check on the values of `P`.
 """
-function computeYlm!(Y::AbstractVector, P::AbstractVector{<:Real}, θ::Real,
-    ϕ::Real, lmax::Integer, m::Union{Integer,Nothing} = nothing,
+function computeYlm!(Y::AbstractVector, P::AbstractVector, θ,
+    ϕ, lmax::Integer, m::Union{Integer,Nothing} = nothing,
     m_range::SHMRange = FullRange, SHType::HarmonicType = ComplexHarmonics())
 
     checksize(length(P), sizeP(Int(lmax)))
@@ -828,21 +831,21 @@ function computeYlm!(Y::AbstractVector, P::AbstractVector{<:Real}, θ::Real,
 
     return Y
 end
-function computeYlm!(Y::AbstractVector, P::AbstractVector{<:Real}, θ::Real,
-    ϕ::Real, lmax::Integer, m_range::SHMRange, SHType::HarmonicType = ComplexHarmonics())
+function computeYlm!(Y::AbstractVector, P::AbstractVector, θ,
+    ϕ, lmax::Integer, m_range::SHMRange, SHType::HarmonicType = ComplexHarmonics())
 
     computeYlm!(Y, P, θ, ϕ, lmax, nothing, m_range, SHType)
 end
 
-function computeYlm!(Y::AbstractVector, P::AbstractVector{<:Real}, θ::Real,
-    ϕ::Real; lmax::Integer, m::Union{Integer,Nothing} = nothing,
+function computeYlm!(Y::AbstractVector, P::AbstractVector, θ,
+    ϕ; lmax::Integer, m::Union{Integer,Nothing} = nothing,
     m_range::SHMRange = FullRange, SHType::HarmonicType = ComplexHarmonics())
 
     computeYlm!(Y, P, θ, ϕ, lmax, m, m_range, SHType)
 end
 
-function computeYlm!(Y::AbstractVector, P::AbstractVector{<:Real}, θ::Pole,
-    ϕ::Real, lmax::Integer, m_range::SHMRange = FullRange,
+function computeYlm!(Y::AbstractVector, P::AbstractVector, θ::Pole,
+    ϕ, lmax::Integer, m_range::SHMRange = FullRange,
     SHType::HarmonicType = ComplexHarmonics())
 
     checksize(length(P), sizeP(Int(lmax)))
@@ -859,8 +862,8 @@ function computeYlm!(Y::AbstractVector, P::AbstractVector{<:Real}, θ::Pole,
 
     return Y
 end
-function computeYlm!(Y::AbstractVector, P::AbstractVector{<:Real}, θ::Pole,
-    ϕ::Real, lmax::Integer, m::Integer, m_range::SHMRange = FullRange,
+function computeYlm!(Y::AbstractVector, P::AbstractVector, θ::Pole,
+    ϕ, lmax::Integer, m::Integer, m_range::SHMRange = FullRange,
     SHType::HarmonicType = ComplexHarmonics())
 
     fill!(Y, zero(eltype(Y)))
@@ -873,7 +876,7 @@ function computeYlm!(Y::AbstractVector, P::AbstractVector{<:Real}, θ::Pole,
 end
 
 """
-    computeYlm!(S::SphericalHarmonicsCache, θ::Real, ϕ::Real, [lmax::Integer])
+    computeYlm!(S::SphericalHarmonicsCache, θ, ϕ, [lmax::Integer])
 
 Compute an entire set of spherical harmonics ``Y_{ℓ,m}(θ,ϕ)`` for ``0 ≤ ℓ ≤ ℓ_\\mathrm{max}`` using the
 pre-computed associated Legendre polynomials saved in `S`, and store the result in `S`. If `lmax` is not provided,
@@ -884,7 +887,7 @@ the value of `lmax` for which associated Legendre polynomials have been computed
     any check on their values. In general `computeYlm!(S::SphericalHarmonicsCache, θ, ϕ, lmax)` should only be
     called after a preceeding call to `computePlmcostheta!(S, θ, lmax)` in order to obtain meaningful results.
 """
-function computeYlm!(S::SphericalHarmonicsCache{<:Any,M,SHT}, θ::Real, ϕ::Real, lmax::Integer = S.lmax) where {M,SHT}
+function computeYlm!(S::SphericalHarmonicsCache{<:Any,M,SHT}, θ, ϕ, lmax::Integer = S.lmax) where {M,SHT}
     @assert lmax <= S.lmax "Plm for lmax = $lmax is not available, please run computePlmcostheta!(S, θ, lmax) first"
     !S.P.initialized && throw(ArgumentError("please run computePlmcostheta!(S, θ, lmax) first"))
     computeYlm!(S.Y, S.P, θ, ϕ, lmax, nothing, M, SHT())
@@ -892,7 +895,7 @@ function computeYlm!(S::SphericalHarmonicsCache{<:Any,M,SHT}, θ::Real, ϕ::Real
 end
 
 """
-    computeYlm!(Y::AbstractVector, θ::Real, ϕ::Real; lmax::Integer, [m::Integer] [m_range = SphericalHarmonics.FullRange], [SHType = SphericalHarmonics.ComplexHarmonics()])
+    computeYlm!(Y::AbstractVector, θ, ϕ; lmax::Integer, [m::Integer] [m_range = SphericalHarmonics.FullRange], [SHType = SphericalHarmonics.ComplexHarmonics()])
 
 Compute an entire set of spherical harmonics ``Y_{ℓ,m}(θ,ϕ)`` for ``0 ≤ ℓ ≤ ℓ_\\mathrm{max}``,
 and store them in the array `Y`.
@@ -905,19 +908,19 @@ corresponding to the azimuthal order `m` would be computed.
 The optional argument `SHType` may be used to choose between real and complex harmonics.
 To compute real spherical harmonics, set this to `SphericalHarmonics.RealHarmonics()`.
 """
-function computeYlm!(Y::AbstractVector, θ::Real, ϕ::Real, lmax::Integer, m::Union{Integer,Nothing} = nothing,
+function computeYlm!(Y::AbstractVector, θ::Number, ϕ, lmax::Integer, m::Union{Integer,Nothing} = nothing,
     m_range::SHMRange = FullRange, SHType::HarmonicType = ComplexHarmonics())
     P = computePlmcostheta(θ, lmax, _maybeabs(m))
     computeYlm!(Y, P, θ, ϕ, lmax, m, m_range, SHType)
     return Y
 end
-function computeYlm!(Y::AbstractVector, θ::Real, ϕ::Real, lmax::Integer, m_range::SHMRange,
+function computeYlm!(Y::AbstractVector, θ::Number, ϕ, lmax::Integer, m_range::SHMRange,
     SHType::HarmonicType = ComplexHarmonics())
     computeYlm!(Y, θ, ϕ, lmax, nothing, m_range, SHType)
     return Y
 end
 
-function computeYlm!(Y::AbstractVector, θ::Real, ϕ::Real; lmax::Integer, m::Union{Integer,Nothing} = nothing,
+function computeYlm!(Y::AbstractVector, θ::Number, ϕ; lmax::Integer, m::Union{Integer,Nothing} = nothing,
     m_range::SHMRange = FullRange, SHType::HarmonicType = ComplexHarmonics())
     computeYlm!(Y, θ, ϕ, lmax, m, m_range, SHType)
     return Y
@@ -931,7 +934,7 @@ function _computeYlm(P, θ, ϕ, lmax, m, m_range, SHType)
 end
 
 @doc raw"""
-    computeYlm(θ::Real, ϕ::Real; lmax::Integer, [m::Integer], [m_range = SphericalHarmonics.FullRange], [SHType = SphericalHarmonics.ComplexHarmonics()])
+    computeYlm(θ, ϕ; lmax::Integer, [m::Integer], [m_range = SphericalHarmonics.FullRange], [SHType = SphericalHarmonics.ComplexHarmonics()])
     computeYlm(θ::SphericalHarmonics.Pole; lmax::Integer, [m_range = SphericalHarmonics.FullRange], [SHType = SphericalHarmonics.ComplexHarmonics()])
 
 Compute an entire set of spherical harmonics ``Y_{ℓ,m}(θ,ϕ)`` for
@@ -1005,7 +1008,7 @@ julia> Y = computeYlm(pi/2, pi/3, lmax = 1, m_range = SphericalHarmonics.ZeroTo,
  -0.24430125595146002
 ```
 """
-function computeYlm(θ::Real, ϕ::Real, lmax::Integer, m::Union{Integer,Nothing} = nothing,
+function computeYlm(θ, ϕ, lmax::Integer, m::Union{Integer,Nothing} = nothing,
     m_range::SHMRange = FullRange, SHType::HarmonicType = ComplexHarmonics())
 
     T = float(promote_type(typeof(θ), typeof(ϕ)))
@@ -1013,13 +1016,13 @@ function computeYlm(θ::Real, ϕ::Real, lmax::Integer, m::Union{Integer,Nothing}
     Y = _computeYlm(P, T(θ), T(ϕ), lmax, m, m_range, SHType)
     return Y
 end
-function computeYlm(θ::Real, ϕ::Real, lmax::Integer,
+function computeYlm(θ, ϕ, lmax::Integer,
     m_range::SHMRange, SHType::HarmonicType = ComplexHarmonics())
 
     computeYlm(θ, ϕ, lmax, nothing, m_range, SHType)
 end
 
-function computeYlm(θ::Pole, ϕ::Real, lmax::Integer, m::Union{Integer,Nothing} = nothing,
+function computeYlm(θ::Pole, ϕ, lmax::Integer, m::Union{Integer,Nothing} = nothing,
     m_range::SHMRange = FullRange,
     SHType::HarmonicType = ComplexHarmonics())
 
@@ -1027,7 +1030,7 @@ function computeYlm(θ::Pole, ϕ::Real, lmax::Integer, m::Union{Integer,Nothing}
     Y = _computeYlm(P, θ, ϕ, lmax, m, m_range, SHType)
     return Y
 end
-function computeYlm(θ::Pole, ϕ::Real, lmax::Integer, m_range::SHMRange,
+function computeYlm(θ::Pole, ϕ, lmax::Integer, m_range::SHMRange,
     SHType::HarmonicType = ComplexHarmonics())
 
     computeYlm(θ, ϕ, lmax, nothing, m_range, SHType)
@@ -1038,7 +1041,7 @@ function computeYlm(θ::Pole, lmax::Integer, m_range::SHMRange = FullRange,
     computeYlm(θ, 0, lmax, nothing, m_range, SHType)
 end
 
-function computeYlm(θ::Real, ϕ::Real; lmax::Integer, m::Union{Integer,Nothing} = nothing,
+function computeYlm(θ, ϕ; lmax::Integer, m::Union{Integer,Nothing} = nothing,
     m_range::SHMRange = FullRange, SHType::HarmonicType = ComplexHarmonics())
 
     computeYlm(θ, ϕ, lmax, m, m_range, SHType)
@@ -1064,12 +1067,12 @@ julia> SphericalHarmonics.sphericalharmonic(π/3, π/3, l = 500, m = 250, SHType
 -0.26742920327340913
 ```
 """
-function sphericalharmonic(θ::Real, ϕ::Real; l::Integer, m::Integer,
+function sphericalharmonic(θ, ϕ; l::Integer, m::Integer,
     SHType::HarmonicType = ComplexHarmonics(), coeff = nothing)
 
     sphericalharmonic(θ, ϕ, l, m, SHType, coeff)
 end
-function sphericalharmonic(θ::Real, ϕ::Real, l::Integer, m::Integer, SHType::HarmonicType = ComplexHarmonics(),
+function sphericalharmonic(θ, ϕ, l::Integer, m::Integer, SHType::HarmonicType = ComplexHarmonics(),
     coeff = nothing)
 
     P = associatedLegendre(θ, l, abs(m), coeff)
