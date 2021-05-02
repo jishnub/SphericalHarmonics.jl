@@ -1000,3 +1000,44 @@ end
         end
     end
 end
+
+@testset "negative theta" begin
+    lmax = 10
+    S1 = SphericalHarmonics.cache(lmax);
+    S2 = SphericalHarmonics.cache(lmax);
+    for θ in LinRange(0, pi, 10)
+        computePlmcostheta!(S1, θ)
+        θ2 = -θ
+        computePlmcostheta!(S2, θ2)
+        for ϕ in LinRange(0, 2pi, 10)
+            Ylmθϕ = computeYlm!(S1, θ, ϕ)
+            Ylmθ2ϕ = computeYlm!(S2, θ2, ϕ)
+            for l in 0:lmax, m in -l:l
+                @test isapprox(Ylmθ2ϕ[(l,m)], (-1)^m * Ylmθϕ[(l,m)], atol = 1e-13, rtol = 1e-8)
+            end
+        end
+    end
+end
+
+@testset "theta ± nπ" begin
+    lmax = 10
+    S1 = SphericalHarmonics.cache(lmax);
+    S2 = SphericalHarmonics.cache(lmax);
+    S3 = SphericalHarmonics.cache(lmax);
+    for θ in LinRange(0, pi, 10)
+        computePlmcostheta!(S1, θ)
+        θ2 = pi + θ
+        computePlmcostheta!(S2, θ2)
+        θ3 = 2pi + θ
+        computePlmcostheta!(S3, θ3)
+        for ϕ in LinRange(0, 2pi, 10)
+            Ylmθϕ = computeYlm!(S1, θ, ϕ)
+            Ylmθ2ϕ = computeYlm!(S2, θ2, ϕ)
+            Ylmθ3ϕ = computeYlm!(S3, θ3, ϕ)
+            for l in 0:lmax, m in -l:l
+                @test isapprox(Ylmθ2ϕ[(l,m)], (-1)^l * Ylmθϕ[(l,m)], atol = 1e-13, rtol = 1e-8)
+                @test isapprox(Ylmθ3ϕ[(l,m)], Ylmθϕ[(l,m)], atol = 1e-13, rtol = 1e-8)
+            end
+        end
+    end
+end
