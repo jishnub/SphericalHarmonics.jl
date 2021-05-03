@@ -383,6 +383,14 @@ end
     Plm = Plmrecursion(l, m, costheta, Pmm, Pmp1m, coeff, T)
 end
 
+function zeroP!(P, lmax)
+    checksizesP(P, lmax)
+    N = sizeP(Int(lmax))
+    Pv = @view P[firstindex(P) .+ (0:N-1)]
+    fill!(Pv, zero(eltype(Pv)))
+    return P
+end
+
 """
     computePlmx!(P::AbstractVector, x, lmax::Integer, coeff::AbstractMatrix)
 
@@ -403,7 +411,7 @@ and all ``ℓ`` lying in ``|m| ≤ ℓ ≤ ℓ_\\mathrm{max}`` .
 function computePlmx!(P::AbstractVector, x, lmax::Integer, args...)
     @assert lmax >= 0 "degree must be non-negative"
     -1 <= x <= 1 || throw(DomainError("x", "The argument to associated Legendre polynomials must satisfy -1 <= x <= 1"))
-    fill!(P, zero(eltype(P)))
+    zeroP!(P, lmax)
     _computePlmx_range!(P, x, 0:lmax, args...)
     return P
 end
@@ -437,7 +445,6 @@ function computePlmx!(P::AssociatedLegendrePolynomials, x, lmax::Integer, coeff:
 end
 function _computePlmx_range!(P::AbstractVector, x, l_range::AbstractUnitRange{<:Integer}, args...)
     lmin, lmax = map(Int, extrema(l_range))
-    checksizesP(P, lmax)
     cosθ, sinθ  = promote(x, √(1-x^2))
     @inbounds _computePlmcostheta!(P, cosθ, sinθ, lmin:lmax, args...)
     return P
@@ -480,26 +487,24 @@ for ``0 ≤ ℓ ≤ ℓ_\\mathrm{max}`` and ``0 ≤ m ≤ ℓ``, as the recursiv
 Pre-existing values in `P` may be overwritten, even for azimuthal orders not equal to ``m``.
 """
 function computePlmcostheta!(P::AbstractVector, θ, lmax, args...)
-    fill!(P, zero(eltype(P)))
+    zeroP!(P, lmax)
     _computePlmcostheta_range!(P, θ, 0:lmax, args...)
     return P
 end
 function _computePlmcostheta_range!(P::AbstractVector, θ, l_range::AbstractUnitRange{<:Integer}, args...)
     lmin, lmax = map(Int, extrema(l_range))
-    checksizesP(P, lmax)
     cosθ, sinθ  = promote(cos(θ), sin(θ))
     @inbounds _computePlmcostheta!(P, cosθ, sinθ, lmin:lmax, args...)
     return P
 end
 
 function computePlmcostheta!(P::AbstractVector, θ::Pole, lmax, args...)
-    fill!(P, zero(eltype(P)))
+    zeroP!(P, lmax)
     _computePlmcostheta_range!(P, θ, 0:lmax, args...)
     return P
 end
 function _computePlmcostheta_range!(P::AbstractVector, θ::Pole, l_range::AbstractUnitRange{<:Integer}, m::Integer, args...)
     lmin, lmax = map(Int, extrema(l_range))
-    checksizesP(P, lmax)
     if !iszero(m)
         return P
     end
@@ -513,7 +518,6 @@ end
 
 function _computePlmcostheta_m0_range!(P::AbstractVector{T}, ::NorthPole, l_range::AbstractUnitRange{<:Integer}) where {T}
     lmin, lmax = map(Int, extrema(l_range))
-    checksizesP(P, lmax)
     Plm = _wrapSHArray(P, lmax, ZeroTo)
     @inbounds for l in lmin:lmax
         Plm[(l, 0)] = _invsqrt2pi * √(T(2l + 1))
@@ -523,8 +527,6 @@ end
 
 function _computePlmcostheta_m0_range!(P::AbstractVector{T}, ::SouthPole, l_range::AbstractUnitRange{<:Integer}) where {T}
     lmin, lmax = map(Int, extrema(l_range))
-    checksizesP(P, lmax)
-    fill!(P, zero(eltype(P)))
     Plm = _wrapSHArray(P, lmax, ZeroTo)
     phase = 1
     @inbounds for l in lmin:lmax
@@ -799,6 +801,15 @@ end
 _maybeabs(::Nothing) = nothing
 _maybeabs(m::Integer) = abs(m)
 
+function checksize_zeroY!(Y, P, lmax, m_range)
+    checksize(length(P), sizeP(Int(lmax)))
+    Ny = sizeY(Int(lmax), m_range)
+    checksize(length(Y), Ny)
+    Yv = @view Y[firstindex(Y) .+ (0:Ny-1)]
+    fill!(Yv, zero(eltype(Yv)))
+    return nothing
+end
+
 """
     computeYlm!(Y::AbstractVector, P::AbstractVector, θ, ϕ; lmax::Integer, [m::Integer], [m_range = SphericalHarmonics.FullRange], [SHType = SphericalHarmonics.ComplexHarmonics()])
     computeYlm!(Y::AbstractVector, P::AbstractVector, θ, ϕ, lmax::Integer, [m::Integer, [m_range = SphericalHarmonics.FullRange, [SHType = SphericalHarmonics.ComplexHarmonics()]]])
@@ -823,18 +834,15 @@ function computeYlm!(Y::AbstractVector, P::AbstractVector, θ,
     ϕ, lmax::Integer, m::Union{Integer,Nothing} = nothing,
     m_range::SHMRange = FullRange, SHType::HarmonicType = ComplexHarmonics())
 
-    checksize(length(P), sizeP(Int(lmax)))
-    checksize(length(Y), sizeY(Int(lmax), m_range))
-
-    fill!(Y, zero(eltype(Y)))
+    checksize_zeroY!(Y, P, lmax, m_range)
     @inbounds computeYlm_maybeallm!(Y, P, ϕ, lmax, m, m_range, SHType)
-
     return Y
 end
 function computeYlm!(Y::AbstractVector, P::AbstractVector, θ,
     ϕ, lmax::Integer, m_range::SHMRange, SHType::HarmonicType = ComplexHarmonics())
 
     computeYlm!(Y, P, θ, ϕ, lmax, nothing, m_range, SHType)
+    return Y
 end
 
 function computeYlm!(Y::AbstractVector, P::AbstractVector, θ,
@@ -842,36 +850,35 @@ function computeYlm!(Y::AbstractVector, P::AbstractVector, θ,
     m_range::SHMRange = FullRange, SHType::HarmonicType = ComplexHarmonics())
 
     computeYlm!(Y, P, θ, ϕ, lmax, m, m_range, SHType)
+    return Y
 end
 
-function computeYlm!(Y::AbstractVector, P::AbstractVector, θ::Pole,
-    ϕ, lmax::Integer, m_range::SHMRange = FullRange,
-    SHType::HarmonicType = ComplexHarmonics())
-
-    checksize(length(P), sizeP(Int(lmax)))
-    checksize(length(Y), sizeY(lmax, m_range))
-
-    fill!(Y, zero(eltype(Y)))
-
+function _computeYlm_poles!(Y, P, ϕ, lmax, m_range)
     PS = _wrapSHArray(P, lmax, ZeroTo)
     Ylm = _wrapSHArray(Y, lmax, m_range)
 
     @inbounds for l in 0:lmax
         Ylm[(l, 0)] = PS[(l, 0)] * _invsqrt2
     end
+    return Y
+end
 
+function computeYlm!(Y::AbstractVector, P::AbstractVector, θ::Pole,
+    ϕ, lmax::Integer, m_range::SHMRange = FullRange,
+    SHType::HarmonicType = ComplexHarmonics())
+
+    checksize_zeroY!(Y, P, lmax, m_range)
+    _computeYlm_poles!(Y, P, ϕ, lmax, m_range)
     return Y
 end
 function computeYlm!(Y::AbstractVector, P::AbstractVector, θ::Pole,
     ϕ, lmax::Integer, m::Integer, m_range::SHMRange = FullRange,
     SHType::HarmonicType = ComplexHarmonics())
 
-    fill!(Y, zero(eltype(Y)))
-
-    !iszero(m) && return Y
-
-    computeYlm!(Y, P, θ, ϕ, lmax, m_range, SHType)
-
+    checksize_zeroY!(Y, P, lmax, m_range)
+    if iszero(m)
+        _computeYlm_poles!(Y, P, ϕ, lmax, m_range)
+    end
     return Y
 end
 
