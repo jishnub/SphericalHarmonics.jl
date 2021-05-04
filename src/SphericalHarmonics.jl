@@ -23,7 +23,7 @@ struct ComplexHarmonics <: HarmonicType end
 Preallocate arrays of associated Legendre polynomials and spherical harmonics.
 Such an object may be allocated using [`cache`](@ref).
 """
-mutable struct SphericalHarmonicsCache{T, M, SHT, C<:AbstractMatrix{<:Real}, PLM<:AbstractVector, YLM<:AbstractVector}
+mutable struct SphericalHarmonicsCache{T, M, SHT, C, PLM<:AbstractVector, YLM<:AbstractVector}
     lmax :: Int
     C :: C
     P :: PLM
@@ -51,13 +51,13 @@ function Base.summary(io::IO, P::AssociatedLegendrePolynomials)
     end
 end
 
-function SphericalHarmonicsCache(T::Type, lmax::Int; m_range = FullRange, SHType::HarmonicType = ComplexHarmonics())
+function SphericalHarmonicsCache(T::Type, lmax::Int, ::Type{m_range}, SHType) where {m_range}
     C = compute_coefficients(T, lmax)
     P = AssociatedLegendrePolynomials(T(0), lmax, allocate_p(T, lmax), false)
     Y = allocate_y(eltypeY(T, SHType), lmax, m_range)
     SphericalHarmonicsCache{T,m_range,typeof(SHType),typeof(C),typeof(P),typeof(Y)}(lmax, C, P, Y)
 end
-SphericalHarmonicsCache(lmax; kw...) = SphericalHarmonicsCache(Float64, lmax; kw...)
+SphericalHarmonicsCache(lmax::Int, args...) = SphericalHarmonicsCache(Float64, lmax, args...)
 
 function Base.show(io::IO, S::SphericalHarmonicsCache{T,M,SHT}) where {T,M,SHT}
     print(io, "$SphericalHarmonicsCache($T, $(Int(S.lmax)), m_range = $M, SHType = $SHT())")
@@ -101,7 +101,7 @@ julia> computePlmcostheta!(S, pi/3, 2)
   0.40970566147202964
 ```
 """
-cache(args...; kw...) = SphericalHarmonicsCache(args...; kw...)
+cache(args...; m_range = FullRange, SHType = ComplexHarmonics()) = SphericalHarmonicsCache(args..., m_range, SHType)
 
 const SHMRange = Union{Type{FullRange}, Type{ZeroTo}}
 
