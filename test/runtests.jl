@@ -7,7 +7,7 @@ using LegendrePolynomials
 using WignerD
 using OffsetArrays
 
-import SphericalHarmonics: NorthPole, SouthPole, allocate_y, allocate_p, RealHarmonics, ComplexHarmonics
+using SphericalHarmonics: NorthPole, SouthPole, allocate_y, allocate_p, RealHarmonics, ComplexHarmonics
 
 @testset "project quality" begin
     if VERSION >= v"1.6"
@@ -736,6 +736,15 @@ end
 end
 
 @testset "cache" begin
+    @testset "constructors" begin
+        S1 = @inferred SphericalHarmonics.cache(3);
+        S2 = @inferred SphericalHarmonics.cache(3, FullRange);
+        S3 = @inferred SphericalHarmonics.cache(3, FullRange, ComplexHarmonics());
+        S4 = @inferred SphericalHarmonics.cache(Float64, 3, FullRange, ComplexHarmonics());
+        S5 = @inferred SphericalHarmonics.cache(3, ComplexHarmonics());
+        S6 = @inferred SphericalHarmonics.cache(Float64, 3, ComplexHarmonics());
+        @test typeof(S1) == typeof(S2) == typeof(S3) == typeof(S4) == typeof(S5) == typeof(S6)
+    end
     @testset "FullRange, ComplexHarmonics" begin
         S = SphericalHarmonics.cache(3);
         @test S.lmax == 3
@@ -889,6 +898,15 @@ end
         summary(io, S.P)
         s = String(take!(io))
         s_exp = "10-element AssociatedLegendrePolynomials{BigFloat} for lmax = 3 (uninitialized)"
+    end
+    @testset "accessor methods" begin
+        S = SphericalHarmonics.cache(Float64, 3);
+        @test @inferred SphericalHarmonics.eltypeP(S) == Float64
+        @test @inferred SphericalHarmonics.eltypeY(S) == ComplexF64
+        @test SphericalHarmonics.getP(S) === S.P
+        @inferred SphericalHarmonics.getP(S)
+        @test SphericalHarmonics.getY(S) === S.Y
+        @inferred SphericalHarmonics.getY(S)
     end
 end
 

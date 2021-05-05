@@ -64,7 +64,7 @@ function Base.show(io::IO, S::SphericalHarmonicsCache{T,M,SHT}) where {T,M,SHT}
 end
 
 """
-    cache([T::Type = Float64], lmax; [m_range = SphericalHarmonicModes.FullRange], [SHType = SphericalHarmonics.ComplexHarmonics()])
+    cache([T::Type = Float64], lmax, [m_range = SphericalHarmonicModes.FullRange], [SHType = SphericalHarmonics.ComplexHarmonics()])
 
 Allocate arrays to evaluate associated Legendre polynomials and spherical harmonics.
 The returned object may be passed to [`computePlmcostheta!`](@ref) and [`computeYlm!`](@ref).
@@ -101,7 +101,11 @@ julia> computePlmcostheta!(S, pi/3, 2)
   0.40970566147202964
 ```
 """
-cache(args...; m_range = FullRange, SHType = ComplexHarmonics()) = SphericalHarmonicsCache(args..., m_range, SHType)
+cache(args...; m_range = FullRange, SHType = ComplexHarmonics()) = cache(args..., m_range, SHType)
+cache(::Type{T}, lmax::Int, ::Type{m_range}, SHType::HarmonicType = ComplexHarmonics()) where {T,m_range} = SphericalHarmonicsCache(T, lmax, m_range, SHType)
+cache(::Type{T}, lmax::Int, SHType::HarmonicType = ComplexHarmonics()) where {T} = SphericalHarmonicsCache(T, lmax, FullRange, SHType)
+cache(lmax::Int, ::Type{m_range}, SHType::HarmonicType = ComplexHarmonics()) where {m_range} = SphericalHarmonicsCache(lmax, m_range, SHType)
+cache(lmax::Int, SHType::HarmonicType = ComplexHarmonics()) = SphericalHarmonicsCache(lmax, FullRange, SHType)
 
 const SHMRange = Union{Type{FullRange}, Type{ZeroTo}}
 
@@ -132,6 +136,12 @@ allocate_y(lmax::Integer, m_range = FullRange) = allocate_y(ComplexF64, lmax, m_
 # We effectively evaluate typeof(zero(R) * im) instead.
 eltypeY(::Type{R}, ::ComplexHarmonics) where {R} = promote_type(R, complex(Bool))
 eltypeY(::Type{R}, ::RealHarmonics) where {R} = R
+
+# define accessor methods that may be used by wrappers
+eltypeP(S::SphericalHarmonicsCache{T}) where {T} = T
+eltypeY(S::SphericalHarmonicsCache{<:Any,<:Any,<:Any,<:Any,<:Any,Y}) where {Y} = eltype(Y)
+getP(S::SphericalHarmonicsCache) = S.P
+getY(S::SphericalHarmonicsCache) = S.Y
 
 @doc raw"""
     SphericalHarmonics.compute_coefficients(lmax)
