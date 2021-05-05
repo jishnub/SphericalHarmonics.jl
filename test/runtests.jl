@@ -890,6 +890,15 @@ end
         s = String(take!(io))
         s_exp = "10-element AssociatedLegendrePolynomials{BigFloat} for lmax = 3 (uninitialized)"
     end
+    @testset "accessor methods" begin
+        S = SphericalHarmonics.cache(Float64, 3);
+        @test @inferred SphericalHarmonics.eltypeP(S) == Float64
+        @test @inferred SphericalHarmonics.eltypeY(S) == ComplexF64
+        @test SphericalHarmonics.getP(S) === S.P
+        @inferred SphericalHarmonics.getP(S)
+        @test SphericalHarmonics.getY(S) === S.Y
+        @inferred SphericalHarmonics.getY(S)
+    end
 end
 
 @testset "Parity" begin

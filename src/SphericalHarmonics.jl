@@ -133,6 +133,12 @@ allocate_y(lmax::Integer, m_range = FullRange) = allocate_y(ComplexF64, lmax, m_
 eltypeY(::Type{R}, ::ComplexHarmonics) where {R} = promote_type(R, complex(Bool))
 eltypeY(::Type{R}, ::RealHarmonics) where {R} = R
 
+# define accessor methods that may be used by wrappers
+eltypeP(S::SphericalHarmonicsCache{T}) where {T} = T
+eltypeY(S::SphericalHarmonicsCache{<:Any,<:Any,<:Any,<:Any,<:Any,Y}) where {Y} = eltype(Y)
+getP(S::SphericalHarmonicsCache) = S.P
+getY(S::SphericalHarmonicsCache) = S.Y
+
 @doc raw"""
     SphericalHarmonics.compute_coefficients(lmax)
 
