@@ -23,11 +23,11 @@ struct ComplexHarmonics <: HarmonicType end
 Preallocate arrays of associated Legendre polynomials and spherical harmonics.
 Such an object may be allocated using [`cache`](@ref).
 """
-mutable struct SphericalHarmonicsCache{T, M, SHT, C, PLM<:AbstractVector, YLM<:AbstractVector}
-    lmax :: Int
+mutable struct SphericalHarmonicsCache{T, C, PLM<:AbstractVector{T}, YLM<:AbstractVector, SHT}
     C :: C
     P :: PLM
     Y :: YLM
+    SHType :: SHT
 end
 
 mutable struct AssociatedLegendrePolynomials{T, PLM<:AbstractVector{T}} <: AbstractVector{T}
@@ -51,16 +51,30 @@ function Base.summary(io::IO, P::AssociatedLegendrePolynomials)
     end
 end
 
+function Base.deepcopy_internal(P::AssociatedLegendrePolynomials, stackdict::IdDict)
+    if haskey(stackdict, P)
+        return stackdict[P]
+    else
+        _cosθ = Base.deepcopy_internal(P.cosθ, stackdict)
+        _lmax = Base.deepcopy_internal(P.lmax, stackdict)
+        _P = Base.deepcopy_internal(P.P, stackdict)
+        _initialized = Base.deepcopy_internal(P.initialized, stackdict)
+        P_new = typeof(P)(_cosθ, _lmax, _P, _initialized)
+        stackdict[P] = P_new
+        return P_new
+    end
+end
+
 function SphericalHarmonicsCache(T::Type, lmax::Int, ::Type{m_range}, SHType) where {m_range}
     C = compute_coefficients(T, lmax)
     P = AssociatedLegendrePolynomials(T(0), lmax, allocate_p(T, lmax), false)
     Y = allocate_y(eltypeY(T, SHType), lmax, m_range)
-    SphericalHarmonicsCache{T,m_range,typeof(SHType),typeof(C),typeof(P),typeof(Y)}(lmax, C, P, Y)
+    SphericalHarmonicsCache(C, P, Y, SHType)
 end
-SphericalHarmonicsCache(lmax::Int, args...) = SphericalHarmonicsCache(Float64, lmax, args...)
+SphericalHarmonicsCache(lmax::Int, T::Type, SHType) = SphericalHarmonicsCache(Float64, lmax, T, SHType)
 
-function Base.show(io::IO, S::SphericalHarmonicsCache{T,M,SHT}) where {T,M,SHT}
-    print(io, "$SphericalHarmonicsCache($T, $(Int(S.lmax)), m_range = $M, SHType = $SHT())")
+function Base.show(io::IO, S::SphericalHarmonicsCache)
+    print(io, "$SphericalHarmonicsCache($(eltypeP(S)), $(_lmax(S)), m_range = $(_mrange_basetype(S)), SHType = $(S.SHType))")
 end
 
 """
@@ -139,9 +153,22 @@ eltypeY(::Type{R}, ::RealHarmonics) where {R} = R
 
 # define accessor methods that may be used by wrappers
 eltypeP(S::SphericalHarmonicsCache{T}) where {T} = T
-eltypeY(S::SphericalHarmonicsCache{<:Any,<:Any,<:Any,<:Any,<:Any,Y}) where {Y} = eltype(Y)
+eltypeY(S::SphericalHarmonicsCache{<:Any,<:Any,<:Any,Y}) where {Y} = eltype(Y)
 getP(S::SphericalHarmonicsCache) = S.P
 getY(S::SphericalHarmonicsCache) = S.Y
+
+function _mrange_basetype(S::SphericalHarmonicsCache)
+    Y = getY(S)
+    modes = only(SphericalHarmonicArrays.modes(Y))
+    _mrange_basetype(m_range(modes))
+end
+_mrange_basetype(::FullRange) = FullRange
+_mrange_basetype(::ZeroTo) = ZeroTo
+
+function _lmax(S::SphericalHarmonicsCache)
+    modes = only(SphericalHarmonicArrays.shmodes(S.C))
+    maximum(l_range(modes))
+end
 
 @doc raw"""
     SphericalHarmonics.compute_coefficients(lmax)
@@ -176,18 +203,17 @@ function compute_coefficients(T::Type, lmax::Integer, m::Integer)
     @inbounds _compute_coefficients!(coeff, abs(Int(m)) + 2, Int(lmax), abs(Int(m)), abs(Int(m)))
     return coeff
 end
-function compute_coefficients!(S::SphericalHarmonicsCache{T,M}, lmax::Integer) where {T,M}
+function compute_coefficients!(S::SphericalHarmonicsCache, lmax::Integer)
     @assert lmax >= 0 "degree must be >= 0"
-    if lmax > S.lmax
+    if lmax > _lmax(S)
         shmodesP = ML(ZeroTo(Int(lmax)), ZeroTo)
-        shmodesY = ML(ZeroTo(Int(lmax)), M)
+        shmodesY = ML(ZeroTo(Int(lmax)), _mrange_basetype(S))
         A = parent(S.C)
         resize!(A, 2, length(shmodesP))
         coeff = SHArray(ElasticArray(A), (2, shmodesP))
 
-        @inbounds _compute_coefficients!(coeff, Int(S.lmax)+1, Int(lmax))
+        @inbounds _compute_coefficients!(coeff, Int(_lmax(S))+1, Int(lmax))
 
-        S.lmax = lmax
         S.C = coeff
         P_len = length(S.P)
         P_new = resize!(parent(parent(S.P)), length(shmodesP))
@@ -433,7 +459,7 @@ Compute an entire set of normalized Associated Legendre Polynomials ``\\bar{P}_�
 using the pre-computed coefficients in `S`, and store the result in `S`. If `lmax` is not provided,
 the value of `lmax` for which coefficients have been computed in `S` is used.
 """
-function computePlmx!(S::SphericalHarmonicsCache, x, lmax::Integer = S.lmax)
+function computePlmx!(S::SphericalHarmonicsCache, x, lmax::Integer = _lmax(S))
     compute_coefficients!(S, lmax)
     computePlmx!(S.P, x, lmax, S.C)
     return S.P
@@ -575,7 +601,7 @@ Compute an entire set of normalized Associated Legendre Polynomials ``\\bar{P}_�
 using the pre-computed coefficients in `S`, and store the result in `S`. If `lmax` is not provided,
 the value of `lmax` for which coefficients have been computed in `S` is used.
 """
-function computePlmcostheta!(S::SphericalHarmonicsCache, θ, lmax::Integer = S.lmax)
+function computePlmcostheta!(S::SphericalHarmonicsCache, θ, lmax::Integer = _lmax(S))
     compute_coefficients!(S, lmax)
     computePlmcostheta!(S.P, θ, lmax, S.C)
     return S.P
@@ -904,10 +930,10 @@ the value of `lmax` for which associated Legendre polynomials have been computed
     any check on their values. In general `computeYlm!(S::SphericalHarmonicsCache, θ, ϕ, lmax)` should only be
     called after a preceeding call to `computePlmcostheta!(S, θ, lmax)` in order to obtain meaningful results.
 """
-function computeYlm!(S::SphericalHarmonicsCache{<:Any,M,SHT}, θ, ϕ, lmax::Integer = S.lmax) where {M,SHT}
-    @assert lmax <= S.lmax "Plm for lmax = $lmax is not available, please run computePlmcostheta!(S, θ, lmax) first"
+function computeYlm!(S::SphericalHarmonicsCache, θ, ϕ, lmax::Integer = _lmax(S))
+    @assert lmax <= _lmax(S) "Plm for lmax = $lmax is not available, please run computePlmcostheta!(S, θ, lmax) first"
     !S.P.initialized && throw(ArgumentError("please run computePlmcostheta!(S, θ, lmax) first"))
-    computeYlm!(S.Y, S.P, θ, ϕ, lmax, nothing, M, SHT())
+    computeYlm!(S.Y, S.P, θ, ϕ, lmax, nothing, _mrange_basetype(S), S.SHType)
     return S.Y
 end
 
