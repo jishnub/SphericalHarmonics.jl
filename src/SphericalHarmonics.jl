@@ -2,14 +2,15 @@ module SphericalHarmonics
 
 using SphericalHarmonicModes
 using SphericalHarmonicArrays
-using ElasticArrays
 using Printf
+using StaticArrays
+using Setfield
 
 export computeYlm, computeYlm!
 export computePlmcostheta, computePlmcostheta!
 export computePlmx, computePlmx!
 
-import Base: @propagate_inbounds
+using Base: @propagate_inbounds
 
 include("irrationals.jl")
 
@@ -23,14 +24,14 @@ struct ComplexHarmonics <: HarmonicType end
 Preallocate arrays of associated Legendre polynomials and spherical harmonics.
 Such an object may be allocated using [`cache`](@ref).
 """
-mutable struct SphericalHarmonicsCache{T, M, SHT, C, PLM<:AbstractVector, YLM<:AbstractVector}
-    lmax :: Int
+mutable struct SphericalHarmonicsCache{T, C, PLM<:AbstractVector{T}, YLM<:AbstractVector, SHT}
     C :: C
     P :: PLM
     Y :: YLM
+    SHType :: SHT
 end
 
-mutable struct AssociatedLegendrePolynomials{T, PLM<:AbstractVector{T}} <: AbstractVector{T}
+struct AssociatedLegendrePolynomials{T, PLM<:AbstractVector{T}} <: AbstractVector{T}
     cosθ :: T
     lmax :: Int
     P :: PLM
@@ -40,9 +41,9 @@ Base.parent(P::AssociatedLegendrePolynomials) = P.P
 Base.size(P::AssociatedLegendrePolynomials) = size(parent(P))
 Base.axes(P::AssociatedLegendrePolynomials) = axes(parent(P))
 Base.IndexStyle(::Type{<:AssociatedLegendrePolynomials{<:Any, PLM}}) where {PLM} = IndexStyle(PLM)
-Base.@propagate_inbounds Base.getindex(P::AssociatedLegendrePolynomials, I...) = getindex(parent(P), I...)
+@propagate_inbounds Base.getindex(P::AssociatedLegendrePolynomials, I...) = getindex(parent(P), I...)
 function Base.summary(io::IO, P::AssociatedLegendrePolynomials)
-    print(io, "$(length(P))-element AssociatedLegendrePolynomials{$(eltype(P))} for lmax = $(Int(P.lmax))")
+    print(io, "$(length(P))-element normalized AssociatedLegendrePolynomials{$(eltype(P))} for lmax = $(Int(P.lmax))")
     if P.initialized
         print(io, " and cosθ = ")
         @printf io "%.4g" P.cosθ
@@ -51,16 +52,32 @@ function Base.summary(io::IO, P::AssociatedLegendrePolynomials)
     end
 end
 
+function Base.deepcopy_internal(S::SphericalHarmonicsCache, stackdict::IdDict)
+    _C = Base.deepcopy_internal(S.C, stackdict)
+    _P = Base.deepcopy_internal(S.P, stackdict)
+    _Y = Base.deepcopy_internal(S.Y, stackdict)
+    _SHT = Base.deepcopy_internal(S.SHType, stackdict)
+    typeof(S)(_C, _P, _Y, _SHT)
+end
+
+function Base.deepcopy_internal(P::AssociatedLegendrePolynomials, stackdict::IdDict)
+    _cosθ = Base.deepcopy_internal(P.cosθ, stackdict)
+    _lmax = Base.deepcopy_internal(P.lmax, stackdict)
+    _P = Base.deepcopy_internal(P.P, stackdict)
+    _initialized = Base.deepcopy_internal(P.initialized, stackdict)
+    typeof(P)(_cosθ, _lmax, _P, _initialized)
+end
+
 function SphericalHarmonicsCache(T::Type, lmax::Int, ::Type{m_range}, SHType) where {m_range}
     C = compute_coefficients(T, lmax)
     P = AssociatedLegendrePolynomials(T(0), lmax, allocate_p(T, lmax), false)
     Y = allocate_y(eltypeY(T, SHType), lmax, m_range)
-    SphericalHarmonicsCache{T,m_range,typeof(SHType),typeof(C),typeof(P),typeof(Y)}(lmax, C, P, Y)
+    SphericalHarmonicsCache(C, P, Y, SHType)
 end
-SphericalHarmonicsCache(lmax::Int, args...) = SphericalHarmonicsCache(Float64, lmax, args...)
+SphericalHarmonicsCache(lmax::Int, T::Type, SHType) = SphericalHarmonicsCache(Float64, lmax, T, SHType)
 
-function Base.show(io::IO, S::SphericalHarmonicsCache{T,M,SHT}) where {T,M,SHT}
-    print(io, "$SphericalHarmonicsCache($T, $(Int(S.lmax)), m_range = $M, SHType = $SHT())")
+function Base.show(io::IO, S::SphericalHarmonicsCache)
+    print(io, "$SphericalHarmonicsCache($(eltypeP(S)), $(_lmax(S)), $(_mrange_basetype(S)), $(S.SHType))")
 end
 
 """
@@ -75,7 +92,7 @@ The coefficients are cached and need not be recomputed.
 julia> S = SphericalHarmonics.cache(1);
 
 julia> computePlmcostheta!(S, pi/3, 1)
-3-element AssociatedLegendrePolynomials{Float64} for lmax = 1 and cosθ = 0.5:
+3-element normalized AssociatedLegendrePolynomials{Float64} for lmax = 1 and cosθ = 0.5:
   0.3989422804014327
   0.34549414947133555
  -0.4231421876608172
@@ -92,7 +109,7 @@ Choosing a new `lmax` in `computePlmcostheta!` expands the cache if necessary.
 
 ```jldoctest cache
 julia> computePlmcostheta!(S, pi/3, 2)
-6-element AssociatedLegendrePolynomials{Float64} for lmax = 2 and cosθ = 0.5:
+6-element normalized AssociatedLegendrePolynomials{Float64} for lmax = 2 and cosθ = 0.5:
   0.3989422804014327
   0.34549414947133555
  -0.4231421876608172
@@ -139,9 +156,22 @@ eltypeY(::Type{R}, ::RealHarmonics) where {R} = R
 
 # define accessor methods that may be used by wrappers
 eltypeP(S::SphericalHarmonicsCache{T}) where {T} = T
-eltypeY(S::SphericalHarmonicsCache{<:Any,<:Any,<:Any,<:Any,<:Any,Y}) where {Y} = eltype(Y)
+eltypeY(S::SphericalHarmonicsCache{<:Any,<:Any,<:Any,Y}) where {Y} = eltype(Y)
 getP(S::SphericalHarmonicsCache) = S.P
 getY(S::SphericalHarmonicsCache) = S.Y
+
+function _mrange_basetype(S::SphericalHarmonicsCache)
+    Y = getY(S)
+    modes = first(SphericalHarmonicArrays.shmodes(Y))
+    _mrange_basetype(m_range(modes))
+end
+_mrange_basetype(::FullRange) = FullRange
+_mrange_basetype(::ZeroTo) = ZeroTo
+
+function _lmax(S::SphericalHarmonicsCache)
+    modes = first(SphericalHarmonicArrays.shmodes(S.C))
+    maximum(l_range(modes))
+end
 
 @doc raw"""
     SphericalHarmonics.compute_coefficients(lmax)
@@ -159,8 +189,8 @@ function compute_coefficients(T::Type, lmax::Integer)
     @assert lmax >= 0 "degree must be non-negative"
 
     shmodes = ML(ZeroTo(Int(lmax)), ZeroTo)
-    A = ElasticArray(zeros(T, 2, length(shmodes)))
-    coeff = SHArray(A, (2, shmodes))
+    A = zeros(SVector{2,T}, length(shmodes))
+    coeff = SHArray(A, (shmodes,))
 
     @inbounds _compute_coefficients!(coeff, 2, Int(lmax))
     return coeff
@@ -171,29 +201,30 @@ function compute_coefficients(T::Type, lmax::Integer, m::Integer)
     @assert m >= 0 "m must be non-negative"
 
     shmodes = ML(ZeroTo(Int(lmax)), SingleValuedRange(m))
-    coeff = zeros(T, 2, shmodes)
+    coeff = zeros(SVector{2,T}, shmodes)
 
     @inbounds _compute_coefficients!(coeff, abs(Int(m)) + 2, Int(lmax), abs(Int(m)), abs(Int(m)))
     return coeff
 end
-function compute_coefficients!(S::SphericalHarmonicsCache{T,M}, lmax::Integer) where {T,M}
+function compute_coefficients!(S::SphericalHarmonicsCache, lmax::Integer)
     @assert lmax >= 0 "degree must be >= 0"
-    if lmax > S.lmax
+    if lmax > _lmax(S)
         shmodesP = ML(ZeroTo(Int(lmax)), ZeroTo)
-        shmodesY = ML(ZeroTo(Int(lmax)), M)
+        shmodesY = ML(ZeroTo(Int(lmax)), _mrange_basetype(S))
         A = parent(S.C)
-        resize!(A, 2, length(shmodesP))
-        coeff = SHArray(ElasticArray(A), (2, shmodesP))
+        resize!(A, length(shmodesP))
+        coeff = SHArray(A, (shmodesP,))
 
-        @inbounds _compute_coefficients!(coeff, Int(S.lmax)+1, Int(lmax))
+        @inbounds _compute_coefficients!(coeff, Int(_lmax(S))+1, Int(lmax))
 
-        S.lmax = lmax
         S.C = coeff
         P_len = length(S.P)
         P_new = resize!(parent(parent(S.P)), length(shmodesP))
         P_new[P_len+1:end] .= zero(eltype(P_new))
         P_new_SA = SHArray(P_new, (shmodesP,))
-        S.P.P = P_new_SA
+        P = S.P
+        P = @set P.P = P_new_SA
+        S.P = P
 
         Y_len = length(S.Y)
         Y_new = resize!(parent(S.Y), length(shmodesY))
@@ -203,7 +234,8 @@ function compute_coefficients!(S::SphericalHarmonicsCache{T,M}, lmax::Integer) w
     return S.C
 end
 
-@propagate_inbounds function _compute_coefficients!(coeff::AbstractArray{T}, lmin, lmax, m_min = 0, m_max = lmax - 2) where {T}
+@propagate_inbounds function _compute_coefficients!(coeff, lmin, lmax, m_min = 0, m_max = lmax - 2)
+    T = eltype(eltype(coeff))
     for l in lmin:lmax
         # pre-compute certain terms to improve performance
         invlm1 = 1/T(l-1)
@@ -211,8 +243,7 @@ end
         Anum = 4 - invl^2
         Bden = 1/√(4 - invlm1^2)
         for m in max(0, m_min):min(l-2, m_max)
-            coeff[1, (l, m)] = √(Anum / (1 - (m * invl)^2))
-            coeff[2, (l, m)] = -√(1 - (m * invlm1)^2) * Bden
+            coeff[(l, m)] = SVector{2}(√(Anum / (1 - (m * invl)^2)), -√(1 - (m * invlm1)^2) * Bden)
         end
     end
 end
@@ -225,11 +256,7 @@ function checksizesP(P, lmax)
     checksize(length(P), sizeP(Int(lmax)))
 end
 
-@propagate_inbounds function readcoeffs(coeff::SHArray, T::Type, l, m)
-    alm = coeff[1, (l,m)]
-    blm = coeff[2, (l,m)]
-    return alm, blm
-end
+@propagate_inbounds readcoeffs(coeff::SHArray, T::Type, l, m) = coeff[(l,m)]
 
 function readcoeffs(coeff::Nothing, T::Type, l, m)
     @assert abs(m) <= l - 2 "m must be <= l - 2"
@@ -245,7 +272,7 @@ end
 ######################################################################################
 
 _promotetype(costheta, sintheta, coeff::Nothing) = float(promote_type(typeof(costheta), typeof(sintheta)))
-_promotetype(costheta, sintheta, coeff::AbstractArray) = float(reduce(promote_type, (typeof(costheta), typeof(sintheta), eltype(coeff))))
+_promotetype(costheta, sintheta, coeff::AbstractArray) = float(reduce(promote_type, (typeof(costheta), typeof(sintheta), eltype(eltype(coeff)))))
 
 _viewmodes(P, modes) = @view P[(firstindex(P) - 1) .+ (1:length(modes))]
 
@@ -433,12 +460,13 @@ Compute an entire set of normalized Associated Legendre Polynomials ``\\bar{P}_�
 using the pre-computed coefficients in `S`, and store the result in `S`. If `lmax` is not provided,
 the value of `lmax` for which coefficients have been computed in `S` is used.
 """
-function computePlmx!(S::SphericalHarmonicsCache, x, lmax::Integer = S.lmax)
+function computePlmx!(S::SphericalHarmonicsCache, x, lmax::Integer = _lmax(S))
     compute_coefficients!(S, lmax)
-    computePlmx!(S.P, x, lmax, S.C)
+    P = computePlmx!(S.P, x, lmax, S.C)
+    S.P = P
     return S.P
 end
-function computePlmx!(P::AssociatedLegendrePolynomials, x, lmax::Integer, coeff::Union{AbstractMatrix,Nothing} = nothing)
+function computePlmx!(P::AssociatedLegendrePolynomials, x, lmax::Integer, coeff = nothing)
     @assert lmax >= 0 "degree must be non-negative"
     -1 <= x <= 1 || throw(DomainError("x", "The argument to associated Legendre polynomials must satisfy -1 <= x <= 1"))
     if P.initialized && P.cosθ == x && P.lmax >= lmax
@@ -447,10 +475,10 @@ function computePlmx!(P::AssociatedLegendrePolynomials, x, lmax::Integer, coeff:
         _computePlmx_range!(parent(P), x, P.lmax+1:lmax, coeff)
     else
         computePlmx!(parent(P), x, lmax, coeff)
-        P.cosθ = x
+        P = @set P.cosθ = x
     end
-    P.lmax = lmax
-    P.initialized = true
+    P = @set P.lmax = lmax
+    P = @set P.initialized = true
     return P
 end
 function _computePlmx_range!(P::AbstractVector, x, l_range::AbstractUnitRange{<:Integer}, args...)
@@ -547,11 +575,11 @@ function _computePlmcostheta_m0_range!(P::AbstractVector{T}, ::SouthPole, l_rang
 end
 
 function computePlmcostheta!(P::AssociatedLegendrePolynomials, θ::Pole, lmax, args...)
-    _computePlmcostheta_alp!(P, θ, lmax, args...)
+    P = _computePlmcostheta_alp!(P, θ, lmax, args...)
     return P
 end
 function computePlmcostheta!(P::AssociatedLegendrePolynomials, θ, lmax, args...)
-    _computePlmcostheta_alp!(P, θ, lmax, args...)
+    P = _computePlmcostheta_alp!(P, θ, lmax, args...)
     return P
 end
 function _computePlmcostheta_alp!(P::AssociatedLegendrePolynomials, θ, lmax, args...)
@@ -561,10 +589,10 @@ function _computePlmcostheta_alp!(P::AssociatedLegendrePolynomials, θ, lmax, ar
         _computePlmcostheta_range!(parent(P), θ, P.lmax+1:lmax, args...)
     else
         computePlmcostheta!(parent(P), θ, lmax, args...)
-        P.cosθ = cos(θ)
+        P = @set P.cosθ = cos(θ)
     end
-    P.lmax = lmax
-    P.initialized = true
+    P = @set P.lmax = lmax
+    P = @set P.initialized = true
     return P
 end
 
@@ -575,10 +603,11 @@ Compute an entire set of normalized Associated Legendre Polynomials ``\\bar{P}_�
 using the pre-computed coefficients in `S`, and store the result in `S`. If `lmax` is not provided,
 the value of `lmax` for which coefficients have been computed in `S` is used.
 """
-function computePlmcostheta!(S::SphericalHarmonicsCache, θ, lmax::Integer = S.lmax)
+function computePlmcostheta!(S::SphericalHarmonicsCache, θ, lmax::Integer = _lmax(S))
     compute_coefficients!(S, lmax)
-    computePlmcostheta!(S.P, θ, lmax, S.C)
-    return S.P
+    P = computePlmcostheta!(S.P, θ, lmax, S.C)
+    S.P = P
+    return P
 end
 
 """
@@ -620,7 +649,7 @@ The precision of the result may be increased by using arbitrary-precision argume
 # Examples
 ```jldoctest
 julia> P = computePlmcostheta(pi/2, lmax = 1)
-3-element AssociatedLegendrePolynomials{Float64} for lmax = 1 and cosθ = 6.123e-17:
+3-element normalized AssociatedLegendrePolynomials{Float64} for lmax = 1 and cosθ = 6.123e-17:
   0.3989422804014327
   4.231083042742082e-17
  -0.4886025119029199
@@ -629,7 +658,7 @@ julia> P[(0,0)]
 0.3989422804014327
 
 julia> P = computePlmcostheta(big(pi)/2, lmax = 1)
-3-element AssociatedLegendrePolynomials{BigFloat} for lmax = 1 and cosθ = 5.485e-78:
+3-element normalized AssociatedLegendrePolynomials{BigFloat} for lmax = 1 and cosθ = 5.485e-78:
   0.3989422804014326779399460599343818684758586311649346576659258296706579258993008
   3.789785583114350800838137317730900078444216599640987847808409161681770236721676e-78
  -0.4886025119029199215863846228383470045758856081942277021382431574458410003616367
@@ -904,10 +933,10 @@ the value of `lmax` for which associated Legendre polynomials have been computed
     any check on their values. In general `computeYlm!(S::SphericalHarmonicsCache, θ, ϕ, lmax)` should only be
     called after a preceeding call to `computePlmcostheta!(S, θ, lmax)` in order to obtain meaningful results.
 """
-function computeYlm!(S::SphericalHarmonicsCache{<:Any,M,SHT}, θ, ϕ, lmax::Integer = S.lmax) where {M,SHT}
-    @assert lmax <= S.lmax "Plm for lmax = $lmax is not available, please run computePlmcostheta!(S, θ, lmax) first"
+function computeYlm!(S::SphericalHarmonicsCache, θ, ϕ, lmax::Integer = _lmax(S))
+    @assert lmax <= _lmax(S) "Plm for lmax = $lmax is not available, please run computePlmcostheta!(S, θ, lmax) first"
     !S.P.initialized && throw(ArgumentError("please run computePlmcostheta!(S, θ, lmax) first"))
-    computeYlm!(S.Y, S.P, θ, ϕ, lmax, nothing, M, SHT())
+    computeYlm!(S.Y, S.P, θ, ϕ, lmax, nothing, _mrange_basetype(S), S.SHType)
     return S.Y
 end
 

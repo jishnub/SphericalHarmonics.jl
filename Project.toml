@@ -1,19 +1,21 @@
 name = "SphericalHarmonics"
 uuid = "c489a379-e885-57ff-9236-bd896d33c250"
-version = "0.1.14"
+version = "0.1.15"
 
 [deps]
-ElasticArrays = "fdbdab4c-e67f-52f5-8c3f-e7b388dad3d4"
 Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
+Setfield = "efcf1570-3423-57d1-acb7-fd33fddbac46"
 SphericalHarmonicArrays = "9dd28c12-4719-4e7d-b634-e7b733a6d046"
 SphericalHarmonicModes = "0e9554e2-b38b-11e9-16d7-9d9abfec665a"
+StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
 
 [compat]
-ElasticArrays = "1.2"
 LegendrePolynomials = "0.3"
 OffsetArrays = "1"
+Setfield = "0.7"
 SphericalHarmonicArrays = "0.4.4"
 SphericalHarmonicModes = "0.4.7"
+StaticArrays = "1"
 WignerD = "0.1"
 julia = "1"
 

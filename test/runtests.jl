@@ -7,11 +7,11 @@ using LegendrePolynomials
 using WignerD
 using OffsetArrays
 
-using SphericalHarmonics: NorthPole, SouthPole, allocate_y, allocate_p, RealHarmonics, ComplexHarmonics
+using SphericalHarmonics: NorthPole, SouthPole, allocate_y, allocate_p, RealHarmonics, ComplexHarmonics, _lmax
 
 @testset "project quality" begin
     if VERSION >= v"1.6"
-        Aqua.test_all(SphericalHarmonics, ambiguities = (recursive = false,))
+        Aqua.test_all(SphericalHarmonics)
     else
         Aqua.test_all(SphericalHarmonics, ambiguities = false)
     end
@@ -747,17 +747,17 @@ end
     end
     @testset "FullRange, ComplexHarmonics" begin
         S = SphericalHarmonics.cache(3);
-        @test S.lmax == 3
+        @test _lmax(S) == 3
         θ, ϕ = pi/3, pi/4
         SphericalHarmonics.computePlmx!(S, cos(θ), 1)
         @test S.P.lmax == 1
         P2 = SphericalHarmonics.computePlmx(cos(θ), lmax = 1)
         @test S.P[1:length(P2)] == P2
         SphericalHarmonics.computePlmx!(S, cos(2θ))
-        @test S.P.lmax == S.lmax
+        @test S.P.lmax == _lmax(S)
         @test S.P == SphericalHarmonics.computePlmx(cos(2θ), lmax = 3)
         computePlmcostheta!(S, θ, 3)
-        @test S.lmax == 3
+        @test _lmax(S) == 3
         @test S.P == computePlmcostheta(θ, lmax = 3)
         # This should be a no-op
         computePlmcostheta!(S, θ, 3)
@@ -769,7 +769,7 @@ end
         computeYlm!(S, θ, ϕ, 3)
         @test S.Y == computeYlm(θ, ϕ, 3)
         computePlmcostheta!(S, θ, 4)
-        @test S.lmax == 4
+        @test _lmax(S) == 4
         @test S.P == computePlmcostheta(θ, lmax = 4)
         computeYlm!(S, θ, ϕ, 4)
         @test S.Y == computeYlm(θ, ϕ, 4)
@@ -785,7 +785,7 @@ end
     end
     @testset "ZeroTo, ComplexHarmonics" begin
         S = SphericalHarmonics.cache(3, m_range = ZeroTo);
-        @test S.lmax == 3
+        @test _lmax(S) == 3
         θ, ϕ = pi/3, pi/4
         SphericalHarmonics.computePlmx!(S, cos(θ), 3)
         @test S.P == SphericalHarmonics.computePlmx(cos(θ), lmax = 3)
@@ -797,7 +797,7 @@ end
         computeYlm!(S, θ, ϕ, 3)
         @test S.Y == computeYlm(θ, ϕ, lmax = 3, m_range = ZeroTo)
         computePlmcostheta!(S, θ, 4)
-        @test S.lmax == 4
+        @test _lmax(S) == 4
         @test S.P == computePlmcostheta(θ, lmax = 4)
         computeYlm!(S, θ, ϕ, 4)
         @test S.Y == computeYlm(θ, ϕ, lmax = 4, m_range = ZeroTo)
@@ -813,7 +813,7 @@ end
     end
     @testset "FullRange, RealHarmonics" begin
         S = SphericalHarmonics.cache(3, SHType = RealHarmonics());
-        @test S.lmax == 3
+        @test _lmax(S) == 3
         θ, ϕ = pi/3, pi/4
         SphericalHarmonics.computePlmx!(S, cos(θ), 3)
         @test S.P == SphericalHarmonics.computePlmx(cos(θ), lmax = 3)
@@ -821,7 +821,7 @@ end
         SphericalHarmonics.computePlmx!(S, cos(θ), 3)
         @test S.P == SphericalHarmonics.computePlmx(cos(θ), lmax = 3)
         computePlmx!(S, cos(θ), 4)
-        @test S.lmax == 4
+        @test _lmax(S) == 4
         @test S.P == computePlmx(cos(θ), lmax = 4)
 
         S = SphericalHarmonics.cache(3, SHType = RealHarmonics());
@@ -834,7 +834,7 @@ end
         @test S.Y == computeYlm(θ, ϕ, lmax = 3, SHType = RealHarmonics())
 
         computePlmcostheta!(S, θ, 4)
-        @test S.lmax == 4
+        @test _lmax(S) == 4
         @test S.P == computePlmcostheta(θ, lmax = 4)
         computeYlm!(S, θ, ϕ, 4)
         @test S.Y == computeYlm(θ, ϕ, lmax = 4, SHType = RealHarmonics())
@@ -850,7 +850,7 @@ end
     end
     @testset "ZeroTo, RealHarmonics" begin
         S = SphericalHarmonics.cache(3, m_range = ZeroTo, SHType = RealHarmonics());
-        @test S.lmax == 3
+        @test _lmax(S) == 3
         θ, ϕ = pi/3, pi/4
         SphericalHarmonics.computePlmx!(S, cos(θ), 3)
         @test S.P == SphericalHarmonics.computePlmx(cos(θ), lmax = 3)
@@ -862,7 +862,7 @@ end
         computeYlm!(S, θ, ϕ, 3)
         @test S.Y == computeYlm(θ, ϕ, lmax = 3, m_range = ZeroTo, SHType = RealHarmonics())
         computePlmcostheta!(S, θ, 4)
-        @test S.lmax == 4
+        @test _lmax(S) == 4
         @test S.P == computePlmcostheta(θ, lmax = 4)
         computeYlm!(S, θ, ϕ, 4)
         @test S.Y == computeYlm(θ, ϕ, lmax = 4, m_range = ZeroTo, SHType = RealHarmonics())
@@ -881,23 +881,23 @@ end
         io = IOBuffer()
         show(io, S)
         s = String(take!(io))
-        s_exp = "$(SphericalHarmonics.SphericalHarmonicsCache)(Float64, 3, m_range = $(SphericalHarmonicModes.FullRange), SHType = $(SphericalHarmonics.ComplexHarmonics)())"
+        s_exp = "$(SphericalHarmonics.SphericalHarmonicsCache)(Float64, 3, $(SphericalHarmonicModes.FullRange), $(SphericalHarmonics.ComplexHarmonics)())"
         @test s == s_exp
         summary(io, S.P)
         s = String(take!(io))
-        s_exp = "10-element AssociatedLegendrePolynomials{Float64} for lmax = 3 (uninitialized)"
+        s_exp = "10-element normalized AssociatedLegendrePolynomials{Float64} for lmax = 3 (uninitialized)"
         @test s == s_exp
         θ = 0
         computePlmcostheta!(S, θ, 3)
         summary(io, S.P)
         s = String(take!(io))
-        s_exp = "10-element AssociatedLegendrePolynomials{Float64} for lmax = 3 and cosθ = 1"
+        s_exp = "10-element normalized AssociatedLegendrePolynomials{Float64} for lmax = 3 and cosθ = 1"
         @test s == s_exp
 
         S = SphericalHarmonics.cache(BigFloat, 3);
         summary(io, S.P)
         s = String(take!(io))
-        s_exp = "10-element AssociatedLegendrePolynomials{BigFloat} for lmax = 3 (uninitialized)"
+        s_exp = "10-element normalized AssociatedLegendrePolynomials{BigFloat} for lmax = 3 (uninitialized)"
     end
     @testset "accessor methods" begin
         S = SphericalHarmonics.cache(Float64, 3);
@@ -907,6 +907,17 @@ end
         @inferred SphericalHarmonics.getP(S)
         @test SphericalHarmonics.getY(S) === S.Y
         @inferred SphericalHarmonics.getY(S)
+    end
+    @testset "deepcopy" begin
+        S = SphericalHarmonics.cache(3);
+        θ, ϕ = pi/3, pi/4
+        SphericalHarmonics.computePlmcostheta!(S, θ)
+        SphericalHarmonics.computeYlm!(S, θ, ϕ)
+        Sd = deepcopy(S)
+        @test Sd.C == S.C
+        @test Sd.P == S.P
+        @test Sd.Y == S.Y
+        @test Sd.SHType == S.SHType
     end
 end
 
