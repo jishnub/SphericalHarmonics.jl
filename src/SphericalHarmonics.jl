@@ -2,14 +2,14 @@ module SphericalHarmonics
 
 using SphericalHarmonicModes
 using SphericalHarmonicArrays
-using ElasticArrays
 using Printf
+using StaticArrays
 
 export computeYlm, computeYlm!
 export computePlmcostheta, computePlmcostheta!
 export computePlmx, computePlmx!
 
-import Base: @propagate_inbounds
+using Base: @propagate_inbounds
 
 include("irrationals.jl")
 
@@ -40,7 +40,7 @@ Base.parent(P::AssociatedLegendrePolynomials) = P.P
 Base.size(P::AssociatedLegendrePolynomials) = size(parent(P))
 Base.axes(P::AssociatedLegendrePolynomials) = axes(parent(P))
 Base.IndexStyle(::Type{<:AssociatedLegendrePolynomials{<:Any, PLM}}) where {PLM} = IndexStyle(PLM)
-Base.@propagate_inbounds Base.getindex(P::AssociatedLegendrePolynomials, I...) = getindex(parent(P), I...)
+@propagate_inbounds Base.getindex(P::AssociatedLegendrePolynomials, I...) = getindex(parent(P), I...)
 function Base.summary(io::IO, P::AssociatedLegendrePolynomials)
     print(io, "$(length(P))-element AssociatedLegendrePolynomials{$(eltype(P))} for lmax = $(Int(P.lmax))")
     if P.initialized
@@ -186,8 +186,8 @@ function compute_coefficients(T::Type, lmax::Integer)
     @assert lmax >= 0 "degree must be non-negative"
 
     shmodes = ML(ZeroTo(Int(lmax)), ZeroTo)
-    A = ElasticArray(zeros(T, 2, length(shmodes)))
-    coeff = SHArray(A, (2, shmodes))
+    A = zeros(SVector{2,T}, length(shmodes))
+    coeff = SHArray(A, (shmodes,))
 
     @inbounds _compute_coefficients!(coeff, 2, Int(lmax))
     return coeff
@@ -198,7 +198,7 @@ function compute_coefficients(T::Type, lmax::Integer, m::Integer)
     @assert m >= 0 "m must be non-negative"
 
     shmodes = ML(ZeroTo(Int(lmax)), SingleValuedRange(m))
-    coeff = zeros(T, 2, shmodes)
+    coeff = zeros(SVector{2,T}, shmodes)
 
     @inbounds _compute_coefficients!(coeff, abs(Int(m)) + 2, Int(lmax), abs(Int(m)), abs(Int(m)))
     return coeff
@@ -209,8 +209,8 @@ function compute_coefficients!(S::SphericalHarmonicsCache, lmax::Integer)
         shmodesP = ML(ZeroTo(Int(lmax)), ZeroTo)
         shmodesY = ML(ZeroTo(Int(lmax)), _mrange_basetype(S))
         A = parent(S.C)
-        resize!(A, 2, length(shmodesP))
-        coeff = SHArray(ElasticArray(A), (2, shmodesP))
+        resize!(A, length(shmodesP))
+        coeff = SHArray(A, (shmodesP,))
 
         @inbounds _compute_coefficients!(coeff, Int(_lmax(S))+1, Int(lmax))
 
@@ -229,7 +229,8 @@ function compute_coefficients!(S::SphericalHarmonicsCache, lmax::Integer)
     return S.C
 end
 
-@propagate_inbounds function _compute_coefficients!(coeff::AbstractArray{T}, lmin, lmax, m_min = 0, m_max = lmax - 2) where {T}
+@propagate_inbounds function _compute_coefficients!(coeff, lmin, lmax, m_min = 0, m_max = lmax - 2)
+    T = eltype(eltype(coeff))
     for l in lmin:lmax
         # pre-compute certain terms to improve performance
         invlm1 = 1/T(l-1)
@@ -237,8 +238,7 @@ end
         Anum = 4 - invl^2
         Bden = 1/√(4 - invlm1^2)
         for m in max(0, m_min):min(l-2, m_max)
-            coeff[1, (l, m)] = √(Anum / (1 - (m * invl)^2))
-            coeff[2, (l, m)] = -√(1 - (m * invlm1)^2) * Bden
+            coeff[(l, m)] = SVector{2}(√(Anum / (1 - (m * invl)^2)), -√(1 - (m * invlm1)^2) * Bden)
         end
     end
 end
@@ -251,11 +251,7 @@ function checksizesP(P, lmax)
     checksize(length(P), sizeP(Int(lmax)))
 end
 
-@propagate_inbounds function readcoeffs(coeff::SHArray, T::Type, l, m)
-    alm = coeff[1, (l,m)]
-    blm = coeff[2, (l,m)]
-    return alm, blm
-end
+@propagate_inbounds readcoeffs(coeff::SHArray, T::Type, l, m) = coeff[(l,m)]
 
 function readcoeffs(coeff::Nothing, T::Type, l, m)
     @assert abs(m) <= l - 2 "m must be <= l - 2"
@@ -271,7 +267,7 @@ end
 ######################################################################################
 
 _promotetype(costheta, sintheta, coeff::Nothing) = float(promote_type(typeof(costheta), typeof(sintheta)))
-_promotetype(costheta, sintheta, coeff::AbstractArray) = float(reduce(promote_type, (typeof(costheta), typeof(sintheta), eltype(coeff))))
+_promotetype(costheta, sintheta, coeff::AbstractArray) = float(reduce(promote_type, (typeof(costheta), typeof(sintheta), eltype(eltype(coeff)))))
 
 _viewmodes(P, modes) = @view P[(firstindex(P) - 1) .+ (1:length(modes))]
 
@@ -464,7 +460,7 @@ function computePlmx!(S::SphericalHarmonicsCache, x, lmax::Integer = _lmax(S))
     computePlmx!(S.P, x, lmax, S.C)
     return S.P
 end
-function computePlmx!(P::AssociatedLegendrePolynomials, x, lmax::Integer, coeff::Union{AbstractMatrix,Nothing} = nothing)
+function computePlmx!(P::AssociatedLegendrePolynomials, x, lmax::Integer, coeff = nothing)
     @assert lmax >= 0 "degree must be non-negative"
     -1 <= x <= 1 || throw(DomainError("x", "The argument to associated Legendre polynomials must satisfy -1 <= x <= 1"))
     if P.initialized && P.cosθ == x && P.lmax >= lmax

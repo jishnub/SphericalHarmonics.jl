@@ -11,7 +11,7 @@ using SphericalHarmonics: NorthPole, SouthPole, allocate_y, allocate_p, RealHarm
 
 @testset "project quality" begin
     if VERSION >= v"1.6"
-        Aqua.test_all(SphericalHarmonics, ambiguities = (recursive = false,))
+        Aqua.test_all(SphericalHarmonics)
     else
         Aqua.test_all(SphericalHarmonics, ambiguities = false)
     end
