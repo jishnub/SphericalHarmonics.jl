@@ -162,14 +162,14 @@ getY(S::SphericalHarmonicsCache) = S.Y
 
 function _mrange_basetype(S::SphericalHarmonicsCache)
     Y = getY(S)
-    modes = only(SphericalHarmonicArrays.modes(Y))
+    modes = first(SphericalHarmonicArrays.shmodes(Y))
     _mrange_basetype(m_range(modes))
 end
 _mrange_basetype(::FullRange) = FullRange
 _mrange_basetype(::ZeroTo) = ZeroTo
 
 function _lmax(S::SphericalHarmonicsCache)
-    modes = only(SphericalHarmonicArrays.shmodes(S.C))
+    modes = first(SphericalHarmonicArrays.shmodes(S.C))
     maximum(l_range(modes))
 end
 
