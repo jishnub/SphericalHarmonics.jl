@@ -4,6 +4,7 @@ using SphericalHarmonicModes
 using SphericalHarmonicArrays
 using Printf
 using StaticArrays
+using Setfield
 
 export computeYlm, computeYlm!
 export computePlmcostheta, computePlmcostheta!
@@ -30,7 +31,7 @@ mutable struct SphericalHarmonicsCache{T, C, PLM<:AbstractVector{T}, YLM<:Abstra
     SHType :: SHT
 end
 
-mutable struct AssociatedLegendrePolynomials{T, PLM<:AbstractVector{T}} <: AbstractVector{T}
+struct AssociatedLegendrePolynomials{T, PLM<:AbstractVector{T}} <: AbstractVector{T}
     cosθ :: T
     lmax :: Int
     P :: PLM
@@ -42,7 +43,7 @@ Base.axes(P::AssociatedLegendrePolynomials) = axes(parent(P))
 Base.IndexStyle(::Type{<:AssociatedLegendrePolynomials{<:Any, PLM}}) where {PLM} = IndexStyle(PLM)
 @propagate_inbounds Base.getindex(P::AssociatedLegendrePolynomials, I...) = getindex(parent(P), I...)
 function Base.summary(io::IO, P::AssociatedLegendrePolynomials)
-    print(io, "$(length(P))-element AssociatedLegendrePolynomials{$(eltype(P))} for lmax = $(Int(P.lmax))")
+    print(io, "$(length(P))-element normalized AssociatedLegendrePolynomials{$(eltype(P))} for lmax = $(Int(P.lmax))")
     if P.initialized
         print(io, " and cosθ = ")
         @printf io "%.4g" P.cosθ
@@ -51,18 +52,20 @@ function Base.summary(io::IO, P::AssociatedLegendrePolynomials)
     end
 end
 
+function Base.deepcopy_internal(S::SphericalHarmonicsCache, stackdict::IdDict)
+    _C = Base.deepcopy_internal(S.C, stackdict)
+    _P = Base.deepcopy_internal(S.P, stackdict)
+    _Y = Base.deepcopy_internal(S.Y, stackdict)
+    _SHT = Base.deepcopy_internal(S.SHType, stackdict)
+    typeof(S)(_C, _P, _Y, _SHT)
+end
+
 function Base.deepcopy_internal(P::AssociatedLegendrePolynomials, stackdict::IdDict)
-    if haskey(stackdict, P)
-        return stackdict[P]
-    else
-        _cosθ = Base.deepcopy_internal(P.cosθ, stackdict)
-        _lmax = Base.deepcopy_internal(P.lmax, stackdict)
-        _P = Base.deepcopy_internal(P.P, stackdict)
-        _initialized = Base.deepcopy_internal(P.initialized, stackdict)
-        P_new = typeof(P)(_cosθ, _lmax, _P, _initialized)
-        stackdict[P] = P_new
-        return P_new
-    end
+    _cosθ = Base.deepcopy_internal(P.cosθ, stackdict)
+    _lmax = Base.deepcopy_internal(P.lmax, stackdict)
+    _P = Base.deepcopy_internal(P.P, stackdict)
+    _initialized = Base.deepcopy_internal(P.initialized, stackdict)
+    typeof(P)(_cosθ, _lmax, _P, _initialized)
 end
 
 function SphericalHarmonicsCache(T::Type, lmax::Int, ::Type{m_range}, SHType) where {m_range}
@@ -74,7 +77,7 @@ end
 SphericalHarmonicsCache(lmax::Int, T::Type, SHType) = SphericalHarmonicsCache(Float64, lmax, T, SHType)
 
 function Base.show(io::IO, S::SphericalHarmonicsCache)
-    print(io, "$SphericalHarmonicsCache($(eltypeP(S)), $(_lmax(S)), m_range = $(_mrange_basetype(S)), SHType = $(S.SHType))")
+    print(io, "$SphericalHarmonicsCache($(eltypeP(S)), $(_lmax(S)), $(_mrange_basetype(S)), $(S.SHType))")
 end
 
 """
@@ -219,7 +222,9 @@ function compute_coefficients!(S::SphericalHarmonicsCache, lmax::Integer)
         P_new = resize!(parent(parent(S.P)), length(shmodesP))
         P_new[P_len+1:end] .= zero(eltype(P_new))
         P_new_SA = SHArray(P_new, (shmodesP,))
-        S.P.P = P_new_SA
+        P = S.P
+        P = @set P.P = P_new_SA
+        S.P = P
 
         Y_len = length(S.Y)
         Y_new = resize!(parent(S.Y), length(shmodesY))
@@ -457,7 +462,8 @@ the value of `lmax` for which coefficients have been computed in `S` is used.
 """
 function computePlmx!(S::SphericalHarmonicsCache, x, lmax::Integer = _lmax(S))
     compute_coefficients!(S, lmax)
-    computePlmx!(S.P, x, lmax, S.C)
+    P = computePlmx!(S.P, x, lmax, S.C)
+    S.P = P
     return S.P
 end
 function computePlmx!(P::AssociatedLegendrePolynomials, x, lmax::Integer, coeff = nothing)
@@ -469,10 +475,10 @@ function computePlmx!(P::AssociatedLegendrePolynomials, x, lmax::Integer, coeff 
         _computePlmx_range!(parent(P), x, P.lmax+1:lmax, coeff)
     else
         computePlmx!(parent(P), x, lmax, coeff)
-        P.cosθ = x
+        P = @set P.cosθ = x
     end
-    P.lmax = lmax
-    P.initialized = true
+    P = @set P.lmax = lmax
+    P = @set P.initialized = true
     return P
 end
 function _computePlmx_range!(P::AbstractVector, x, l_range::AbstractUnitRange{<:Integer}, args...)
@@ -569,11 +575,11 @@ function _computePlmcostheta_m0_range!(P::AbstractVector{T}, ::SouthPole, l_rang
 end
 
 function computePlmcostheta!(P::AssociatedLegendrePolynomials, θ::Pole, lmax, args...)
-    _computePlmcostheta_alp!(P, θ, lmax, args...)
+    P = _computePlmcostheta_alp!(P, θ, lmax, args...)
     return P
 end
 function computePlmcostheta!(P::AssociatedLegendrePolynomials, θ, lmax, args...)
-    _computePlmcostheta_alp!(P, θ, lmax, args...)
+    P = _computePlmcostheta_alp!(P, θ, lmax, args...)
     return P
 end
 function _computePlmcostheta_alp!(P::AssociatedLegendrePolynomials, θ, lmax, args...)
@@ -583,10 +589,10 @@ function _computePlmcostheta_alp!(P::AssociatedLegendrePolynomials, θ, lmax, ar
         _computePlmcostheta_range!(parent(P), θ, P.lmax+1:lmax, args...)
     else
         computePlmcostheta!(parent(P), θ, lmax, args...)
-        P.cosθ = cos(θ)
+        P = @set P.cosθ = cos(θ)
     end
-    P.lmax = lmax
-    P.initialized = true
+    P = @set P.lmax = lmax
+    P = @set P.initialized = true
     return P
 end
 
@@ -599,8 +605,9 @@ the value of `lmax` for which coefficients have been computed in `S` is used.
 """
 function computePlmcostheta!(S::SphericalHarmonicsCache, θ, lmax::Integer = _lmax(S))
     compute_coefficients!(S, lmax)
-    computePlmcostheta!(S.P, θ, lmax, S.C)
-    return S.P
+    P = computePlmcostheta!(S.P, θ, lmax, S.C)
+    S.P = P
+    return P
 end
 
 """

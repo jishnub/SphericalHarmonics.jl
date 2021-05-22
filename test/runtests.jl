@@ -881,23 +881,23 @@ end
         io = IOBuffer()
         show(io, S)
         s = String(take!(io))
-        s_exp = "$(SphericalHarmonics.SphericalHarmonicsCache)(Float64, 3, m_range = $(SphericalHarmonicModes.FullRange), SHType = $(SphericalHarmonics.ComplexHarmonics)())"
+        s_exp = "$(SphericalHarmonics.SphericalHarmonicsCache)(Float64, 3, $(SphericalHarmonicModes.FullRange), $(SphericalHarmonics.ComplexHarmonics)())"
         @test s == s_exp
         summary(io, S.P)
         s = String(take!(io))
-        s_exp = "10-element AssociatedLegendrePolynomials{Float64} for lmax = 3 (uninitialized)"
+        s_exp = "10-element normalized AssociatedLegendrePolynomials{Float64} for lmax = 3 (uninitialized)"
         @test s == s_exp
         θ = 0
         computePlmcostheta!(S, θ, 3)
         summary(io, S.P)
         s = String(take!(io))
-        s_exp = "10-element AssociatedLegendrePolynomials{Float64} for lmax = 3 and cosθ = 1"
+        s_exp = "10-element normalized AssociatedLegendrePolynomials{Float64} for lmax = 3 and cosθ = 1"
         @test s == s_exp
 
         S = SphericalHarmonics.cache(BigFloat, 3);
         summary(io, S.P)
         s = String(take!(io))
-        s_exp = "10-element AssociatedLegendrePolynomials{BigFloat} for lmax = 3 (uninitialized)"
+        s_exp = "10-element normalized AssociatedLegendrePolynomials{BigFloat} for lmax = 3 (uninitialized)"
     end
     @testset "accessor methods" begin
         S = SphericalHarmonics.cache(Float64, 3);
@@ -907,6 +907,17 @@ end
         @inferred SphericalHarmonics.getP(S)
         @test SphericalHarmonics.getY(S) === S.Y
         @inferred SphericalHarmonics.getY(S)
+    end
+    @testset "deepcopy" begin
+        S = SphericalHarmonics.cache(3);
+        θ, ϕ = pi/3, pi/4
+        SphericalHarmonics.computePlmcostheta!(S, θ)
+        SphericalHarmonics.computeYlm!(S, θ, ϕ)
+        Sd = deepcopy(S)
+        @test Sd.C == S.C
+        @test Sd.P == S.P
+        @test Sd.Y == S.Y
+        @test Sd.SHType == S.SHType
     end
 end
 
