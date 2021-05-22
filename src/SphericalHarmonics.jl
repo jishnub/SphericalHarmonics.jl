@@ -92,7 +92,7 @@ The coefficients are cached and need not be recomputed.
 julia> S = SphericalHarmonics.cache(1);
 
 julia> computePlmcostheta!(S, pi/3, 1)
-3-element AssociatedLegendrePolynomials{Float64} for lmax = 1 and cosθ = 0.5:
+3-element normalized AssociatedLegendrePolynomials{Float64} for lmax = 1 and cosθ = 0.5:
   0.3989422804014327
   0.34549414947133555
  -0.4231421876608172
@@ -109,7 +109,7 @@ Choosing a new `lmax` in `computePlmcostheta!` expands the cache if necessary.
 
 ```jldoctest cache
 julia> computePlmcostheta!(S, pi/3, 2)
-6-element AssociatedLegendrePolynomials{Float64} for lmax = 2 and cosθ = 0.5:
+6-element normalized AssociatedLegendrePolynomials{Float64} for lmax = 2 and cosθ = 0.5:
   0.3989422804014327
   0.34549414947133555
  -0.4231421876608172
@@ -649,7 +649,7 @@ The precision of the result may be increased by using arbitrary-precision argume
 # Examples
 ```jldoctest
 julia> P = computePlmcostheta(pi/2, lmax = 1)
-3-element AssociatedLegendrePolynomials{Float64} for lmax = 1 and cosθ = 6.123e-17:
+3-element normalized AssociatedLegendrePolynomials{Float64} for lmax = 1 and cosθ = 6.123e-17:
   0.3989422804014327
   4.231083042742082e-17
  -0.4886025119029199
@@ -658,7 +658,7 @@ julia> P[(0,0)]
 0.3989422804014327
 
 julia> P = computePlmcostheta(big(pi)/2, lmax = 1)
-3-element AssociatedLegendrePolynomials{BigFloat} for lmax = 1 and cosθ = 5.485e-78:
+3-element normalized AssociatedLegendrePolynomials{BigFloat} for lmax = 1 and cosθ = 5.485e-78:
   0.3989422804014326779399460599343818684758586311649346576659258296706579258993008
   3.789785583114350800838137317730900078444216599640987847808409161681770236721676e-78
  -0.4886025119029199215863846228383470045758856081942277021382431574458410003616367
