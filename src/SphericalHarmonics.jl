@@ -1130,4 +1130,6 @@ function sphericalharmonic(θ, ϕ, l::Integer, m::Integer, SHType::HarmonicType 
     norm * P
 end
 
+include("precompile.jl")
+
 end
