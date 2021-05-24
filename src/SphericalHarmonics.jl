@@ -52,21 +52,22 @@ function Base.summary(io::IO, P::AssociatedLegendrePolynomials)
     end
 end
 
-function Base.deepcopy_internal(S::SphericalHarmonicsCache, stackdict::IdDict)
-    _C = Base.deepcopy_internal(S.C, stackdict)
-    _P = Base.deepcopy_internal(S.P, stackdict)
-    _Y = Base.deepcopy_internal(S.Y, stackdict)
-    _SHT = Base.deepcopy_internal(S.SHType, stackdict)
-    typeof(S)(_C, _P, _Y, _SHT)
-end
+# Optimized deepcopy, but this leads to a lot of invalidations
+#function Base.deepcopy_internal(S::SphericalHarmonicsCache, stackdict::IdDict)
+#    _C = Base.deepcopy_internal(S.C, stackdict)
+#    _P = Base.deepcopy_internal(S.P, stackdict)
+#    _Y = Base.deepcopy_internal(S.Y, stackdict)
+#    _SHT = Base.deepcopy_internal(S.SHType, stackdict)
+#    typeof(S)(_C, _P, _Y, _SHT)
+#end
 
-function Base.deepcopy_internal(P::AssociatedLegendrePolynomials, stackdict::IdDict)
-    _cosθ = Base.deepcopy_internal(P.cosθ, stackdict)
-    _lmax = Base.deepcopy_internal(P.lmax, stackdict)
-    _P = Base.deepcopy_internal(P.P, stackdict)
-    _initialized = Base.deepcopy_internal(P.initialized, stackdict)
-    typeof(P)(_cosθ, _lmax, _P, _initialized)
-end
+#function Base.deepcopy_internal(P::AssociatedLegendrePolynomials, stackdict::IdDict)
+#    _cosθ = Base.deepcopy_internal(P.cosθ, stackdict)
+#    _lmax = Base.deepcopy_internal(P.lmax, stackdict)
+#    _P = Base.deepcopy_internal(P.P, stackdict)
+#    _initialized = Base.deepcopy_internal(P.initialized, stackdict)
+#    typeof(P)(_cosθ, _lmax, _P, _initialized)
+#end
 
 function SphericalHarmonicsCache(T::Type, lmax::Int, ::Type{m_range}, SHType) where {m_range}
     C = compute_coefficients(T, lmax)
