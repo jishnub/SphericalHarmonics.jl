@@ -5,14 +5,17 @@ version = "0.1.16"
 [deps]
 Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
 Setfield = "efcf1570-3423-57d1-acb7-fd33fddbac46"
+SpecialFunctions = "276daf66-3868-5448-9aa4-cd146d93841b"
 SphericalHarmonicArrays = "9dd28c12-4719-4e7d-b634-e7b733a6d046"
 SphericalHarmonicModes = "0e9554e2-b38b-11e9-16d7-9d9abfec665a"
 StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
 
 [compat]
+HCubature = "1"
 LegendrePolynomials = "0.3"
 OffsetArrays = "1"
 Setfield = "0.7"
+SpecialFunctions = "1"
 SphericalHarmonicArrays = "0.4.4"
 SphericalHarmonicModes = "0.4.7"
 StaticArrays = "1"
