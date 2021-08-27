@@ -33,7 +33,7 @@ end
     @test eltype(allocate_p(BigFloat, lmax)) == BigFloat
 end
 
-@testset "Ylm explicit" begin
+@testset "Ylm and Plm explicit" begin
 
     function explicit_shs_complex_fullrange(θ, φ)
         Y00 = 0.5 * sqrt(1/π)
@@ -68,6 +68,37 @@ end
         Y32 = 1/4 * exp(2 * im * φ) * sqrt(105/(2*π)) * cos(θ) * sin(θ)^2
         Y33 = -(1/8) * exp(3 * im * φ) * sqrt(35/π) * sin(θ)^3
         return [Y00, Y10, Y11, Y20, Y21, Y22, Y30, Y31, Y32, Y33]
+    end
+
+    function explicit_associated_legendre(θ)
+        # test only the unnormalized polynomials
+        x = cos(θ)
+        P00 = 1
+        P10 = x
+        P11 = -sin(θ)
+        P20 = (3x^2 - 1)/2
+        P21 = -3x*sin(θ)
+        P22 = 3(1-x^2)
+
+        [P00, P10, P11, P20, P21, P22]
+    end
+
+    @testset "associated legendre polynomials" begin
+        for θ in LinRange(0, π, 100)
+            P = computePlmcostheta(θ, 2, norm = Unnormalized())
+            @test P ≈ explicit_associated_legendre(θ)
+        end
+
+        @testset "condon-shortley phase" begin
+            θ = pi/3
+            for normtype in [Unnormalized, LMnorm, Orthonormal]
+                P = computePlmcostheta(θ, 2, norm = normtype())
+                PnoCS = computePlmcostheta(θ, 2, norm = normtype(csphase = false))
+                for (ind, (l,m)) in enumerate(ML(0:2, ZeroTo))
+                    @test P[ind] ≈ (-1)^m * PnoCS[ind] atol=1e-14 rtol=1e-14
+                end
+            end
+        end
     end
 
     @testset "complex harmonics" begin
