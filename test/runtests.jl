@@ -7,14 +7,20 @@ using LegendrePolynomials
 using WignerD
 using OffsetArrays
 
-using SphericalHarmonics: NorthPole, SouthPole, allocate_y, allocate_p, RealHarmonics, ComplexHarmonics, _lmax
+using SphericalHarmonics: NorthPole,
+SouthPole,
+allocate_y,
+allocate_p,
+RealHarmonics,
+ComplexHarmonics,
+_lmax,
+associatedLegendre,
+Unnormalized,
+LMnorm,
+Orthonormal
 
 @testset "project quality" begin
-    if VERSION >= v"1.6"
-        Aqua.test_all(SphericalHarmonics)
-    else
-        Aqua.test_all(SphericalHarmonics, ambiguities = false)
-    end
+    Aqua.test_all(SphericalHarmonics, ambiguities = false)
 end
 
 @testset "allocate" begin
@@ -305,7 +311,18 @@ end
 
     @testset "North pole" begin
         @testset "Plm" begin
-            @test computePlmcostheta(0,10) ≈ computePlmcostheta(NorthPole(),10)
+            for norm in [LMnorm(), Unnormalized(), Orthonormal()]
+                @test computePlmcostheta(0, 10, norm = norm) ≈ computePlmcostheta(NorthPole(),10, norm = norm)
+            end
+            for (l,m) in ML(0:4, ZeroTo)
+                @test associatedLegendre(0, l, m, norm = SphericalHarmonics.Unnormalized()) ≈ (m == 0) atol=1e-14 rtol=1e-8
+            end
+            P1 = computePlmcostheta(0, 10, norm = SphericalHarmonics.Unnormalized())
+            P2 = computePlmx(1, 10, norm = SphericalHarmonics.Unnormalized())
+            for (l,m) in ML(0:10, ZeroTo)
+                @test P1[(l,m)] ≈ (m == 0) atol=1e-14 rtol=1e-8
+                @test P2[(l,m)] ≈ (m == 0) atol=1e-14 rtol=1e-8
+            end
         end
         @testset "computePlmcostheta!" begin
             lmax = 3
@@ -620,44 +637,50 @@ end
     end
 end
 
-@testset "orthonormality" begin
+@testset "Orthonormality" begin
 
     @testset "Associated Legendre Polynomials" begin
-        function testnorm(f)
+        shnorm(::SphericalHarmonics.LMnorm) = 1/pi
+        shnorm(::SphericalHarmonics.Orthonormal) = 1
+        function testnorm(f, norm = SphericalHarmonics.LMnorm())
             I, E = hcubature(f, [0], [π]);
-            @test I ≈ 1/π
+            @test I ≈ shnorm(norm)
         end
-        function testortho(f)
+        function testorthogonal(f)
             I, E = hcubature(f, [0], [π], atol=1e-10);
             @test isapprox(abs(I), 0, atol = max(abs(E), 1e-10))
         end
         lmax = 10
-        coeff = SphericalHarmonics.compute_coefficients(lmax)
-        P = SphericalHarmonics.allocate_p(lmax)
+        coeff = SphericalHarmonics.compute_coefficients(lmax);
+        P = SphericalHarmonics.allocate_p(lmax);
 
         @testset "Normalization" begin
-            function f!(x, P, l, m)
+            function f!(x, P, l, m, norm = SphericalHarmonics.LMnorm())
                 θ = x[1]
-                computePlmcostheta!(P, θ, l, m, coeff)
+                computePlmcostheta!(P, θ, l, m, coeff, norm = norm)
                 sin(θ) * P[(l,m)]^2
             end
 
-            for m = 0:lmax, l = m:lmax
-                testnorm(x -> f!(x, P, l, m))
+            for norm in [SphericalHarmonics.LMnorm(), SphericalHarmonics.Orthonormal()]
+                for m = 0:lmax, l = m:lmax
+                    testnorm(x -> f!(x, P, l, m, norm), norm)
+                end
             end
         end
 
         @testset "Orthogonality" begin
             @testset "same m, different l" begin
-                function f!(x, P, k, l, m)
+                function f!(x, P, k, l, m, norm = SphericalHarmonics.LMnorm())
                     θ = x[1]
-                    computePlmcostheta!(P, θ, max(k, l), m, coeff)
+                    computePlmcostheta!(P, θ, max(k, l), m, coeff, norm = norm)
                     sin(θ) * P[(k,m)] * P[(l,m)]
                 end
 
-                for m = 0:lmax, l = m:lmax, k = m:lmax
-                    k == l && continue
-                    testortho(x -> f!(x, P, k, l, m))
+                for norm in [SphericalHarmonics.LMnorm(), SphericalHarmonics.Orthonormal()]
+                    for m = 0:lmax, l = m:lmax, k = m:lmax
+                        k == l && continue
+                        testorthogonal(x -> f!(x, P, k, l, m, norm))
+                    end
                 end
             end
 
@@ -669,7 +692,7 @@ end
                 end
 
                 for l = 0:lmax, m1 in 0:l, m2 in m1+1:l
-                    testortho(x -> f!(x, P, l, m1, m2))
+                    testorthogonal(x -> f!(x, P, l, m1, m2))
                 end
             end
         end

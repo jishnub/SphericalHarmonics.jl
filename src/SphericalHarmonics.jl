@@ -5,6 +5,7 @@ using SphericalHarmonicArrays
 using Printf
 using StaticArrays
 using Setfield
+using SpecialFunctions: loggamma
 
 export computeYlm, computeYlm!
 export computePlmcostheta, computePlmcostheta!
@@ -37,6 +38,8 @@ struct AssociatedLegendrePolynomials{T, PLM<:AbstractVector{T}} <: AbstractVecto
     P :: PLM
     initialized :: Bool
 end
+AssociatedLegendrePolynomials(cosθ, lmax, P::AbstractVector, initialized::Bool) =
+    AssociatedLegendrePolynomials(convert(eltype(P), cosθ), Int(lmax), P, initialized)
 Base.parent(P::AssociatedLegendrePolynomials) = P.P
 Base.size(P::AssociatedLegendrePolynomials) = size(parent(P))
 Base.axes(P::AssociatedLegendrePolynomials) = axes(parent(P))
@@ -51,23 +54,6 @@ function Base.summary(io::IO, P::AssociatedLegendrePolynomials)
         print(io, " (uninitialized)")
     end
 end
-
-# Optimized deepcopy, but this leads to a lot of invalidations
-#function Base.deepcopy_internal(S::SphericalHarmonicsCache, stackdict::IdDict)
-#    _C = Base.deepcopy_internal(S.C, stackdict)
-#    _P = Base.deepcopy_internal(S.P, stackdict)
-#    _Y = Base.deepcopy_internal(S.Y, stackdict)
-#    _SHT = Base.deepcopy_internal(S.SHType, stackdict)
-#    typeof(S)(_C, _P, _Y, _SHT)
-#end
-
-#function Base.deepcopy_internal(P::AssociatedLegendrePolynomials, stackdict::IdDict)
-#    _cosθ = Base.deepcopy_internal(P.cosθ, stackdict)
-#    _lmax = Base.deepcopy_internal(P.lmax, stackdict)
-#    _P = Base.deepcopy_internal(P.P, stackdict)
-#    _initialized = Base.deepcopy_internal(P.initialized, stackdict)
-#    typeof(P)(_cosθ, _lmax, _P, _initialized)
-#end
 
 function SphericalHarmonicsCache(T::Type, lmax::Int, ::Type{m_range}, SHType) where {m_range}
     C = compute_coefficients(T, lmax)
@@ -285,8 +271,32 @@ function _wrapSHArray(P, lmax, m_range)
     _wrapSHArray(P, modes)
 end
 
+abstract type PLMnorm end
+struct Orthonormal <: PLMnorm end
+struct Unnormalized <: PLMnorm end
+struct LMnorm <: PLMnorm end # Limpanuparb-Milthorpe norm as used in the paper
+
+function invnorm(l, m, ::Unnormalized)
+    exp(-(log(2l+1) - _log2pi + loggamma(l-m+1) - loggamma(l+m+1))/2)
+end
+invnorm(l, m, ::Orthonormal) = _sqrtpi
+invnorm(l, m, ::LMnorm) = true
+
+normalize!(P, ::LMnorm, args...) = P
+function normalize!(P, norm, l, m_P = nothing)
+    m_l(modes, l, ::Nothing) =  m_range(modes, l)
+    m_l(modes, l, m) =  intersect(m_range(modes, l), m)
+
+    modes = LM(l, m_P === nothing ? ZeroTo : m_P)
+    Plm = _wrapSHArray(P, maximum(l), ZeroTo)
+    for l in l_range(modes), m in m_l(modes, l, m_P)
+        Plm[(l,m)] *= invnorm(l, m, norm)
+    end
+    return P
+end
+
 @propagate_inbounds function _computePlmcostheta!(P, costheta, sintheta, l_range,
-    coeff::Union{AbstractArray,Nothing} = nothing)
+    coeff::Union{AbstractArray,Nothing} = nothing; norm::PLMnorm = LMnorm())
 
     lmin, lmax = map(Int, extrema(l_range))
     @assert lmin >= 0 "degree must be non-negative"
@@ -308,7 +318,7 @@ end
 
         # compute temp without losing precision
         for l in 2:lmin - 1
-            temp = -√(T(2l + 1)/2l) * sintheta * temp
+            temp *= -√(T(2l + 1)/2l) * sintheta
         end
 
         for l in max(2, lmin):lmax
@@ -322,11 +332,12 @@ end
         end
     end
 
+    normalize!(P, norm, l_range)
     return P
 end
 
 @propagate_inbounds function _computePlmcostheta!(P, costheta, sintheta, l_range, m::Integer,
-    coeff::Union{AbstractArray,Nothing} = nothing)
+    coeff::Union{AbstractArray,Nothing} = nothing; norm::PLMnorm = LMnorm())
 
     lmin, lmax = map(Int, extrema(l_range))
     @assert lmin == 0 "minimum degree must be zero"
@@ -361,6 +372,7 @@ end
         end
 
         if m == lmax
+            normalize!(Plm, norm, l_range, m)
             return P
         end
 
@@ -373,11 +385,13 @@ end
         end
     end
 
+    normalize!(Plm, norm, l_range, m)
     return P
 end
 
-@propagate_inbounds function _computePlmcostheta!(P, costheta, sintheta, l_range, m::Nothing, coeff::Union{AbstractArray,Nothing})
-    _computePlmcostheta!(P, costheta, sintheta, l_range, coeff)
+@propagate_inbounds function _computePlmcostheta!(P, costheta, sintheta, l_range,
+        m::Nothing, coeff::Union{AbstractArray,Nothing}; norm::PLMnorm = LMnorm())
+    _computePlmcostheta!(P, costheta, sintheta, l_range, coeff; norm = norm)
 end
 
 @propagate_inbounds function Plmrecursion(l, m, costheta, Pmm, Pmp1m, coeff, T)
@@ -395,7 +409,7 @@ end
     return Plm1_m
 end
 
-@propagate_inbounds function _computePlmcostheta(costheta, sintheta, l, m, coeff)
+@propagate_inbounds function _computePlmcostheta(costheta, sintheta, l, m, coeff; norm::PLMnorm = LMnorm())
     0 <= m <= l || throw(ArgumentError("m = $m does not satisfy 0 ≤ m ≤ l = $l"))
 
     T = _promotetype(costheta, sintheta, coeff)
@@ -412,6 +426,7 @@ end
     end
 
     if m == l
+        Pmm *= invnorm(l, m, norm)
         return Pmm
     end
 
@@ -419,6 +434,8 @@ end
 
     # Recursion at a constant m to compute Pl,m from Pm,m and Pm+1,m
     Plm = Plmrecursion(l, m, costheta, Pmm, Pmp1m, coeff, T)
+    Plm *= invnorm(l, m, norm)
+    return Plm
 end
 
 function zeroP!(P, lmax)
@@ -430,7 +447,7 @@ function zeroP!(P, lmax)
 end
 
 """
-    computePlmx!(P::AbstractVector, x, lmax::Integer, coeff::AbstractMatrix)
+    computePlmx!(P::AbstractVector, x, lmax::Integer, coeff::AbstractMatrix; [norm = SphericalHarmonics.LMnorm()])
 
 Compute an entire set of normalized Associated Legendre Polynomials ``\\bar{P}_ℓ^m(x)``
 using the given coefficients, and store in the array `P`.
@@ -439,59 +456,63 @@ The matrix `coeff` may be computed using [`compute_coefficients`](@ref).
 The argument `x` needs to lie in ``-1 ≤ x ≤ 1``. The function implicitly assumes that
 ``x = \\cos(\\theta)`` where ``0 ≤ \\theta ≤ π``.
 
-See [`computePlmcostheta`](@ref) for the normalization used.
+The keyword argument `norm` may be used to specify the how the polynomials are normalized.
+See [`computePlmcostheta`](@ref) for the possible normalization options.
 
     computePlmx!(P::AbstractVector, x, lmax::Integer, m::Integer, coeff::AbstractMatrix)
 
 Compute the set of normalized Associated Legendre Polynomials ``\\bar{P}_ℓ^m(x)`` for for the specified ``m``
 and all ``ℓ`` lying in ``|m| ≤ ℓ ≤ ℓ_\\mathrm{max}`` .
 """
-function computePlmx!(P::AbstractVector, x, lmax::Integer, args...)
+function computePlmx!(P::AbstractVector, x, lmax::Integer, args...; norm::PLMnorm = LMnorm())
     @assert lmax >= 0 "degree must be non-negative"
     -1 <= x <= 1 || throw(DomainError("x", "The argument to associated Legendre polynomials must satisfy -1 <= x <= 1"))
     zeroP!(P, lmax)
-    _computePlmx_range!(P, x, 0:lmax, args...)
+    _computePlmx_range!(P, x, 0:lmax, args...; norm = norm)
     return P
 end
 
 """
-    computePlmx!(S::SphericalHarmonicsCache, x, [lmax::Integer])
+    computePlmx!(S::SphericalHarmonicsCache, x[, lmax::Integer]; [norm = SphericalHarmonics.LMnorm()])
 
 Compute an entire set of normalized Associated Legendre Polynomials ``\\bar{P}_ℓ^m(x)``
 using the pre-computed coefficients in `S`, and store the result in `S`. If `lmax` is not provided,
 the value of `lmax` for which coefficients have been computed in `S` is used.
+
+The keyword argument `norm` may be used to specify the how the polynomials are normalized.
+See [`computePlmcostheta`](@ref) for the possible normalization options.
 """
-function computePlmx!(S::SphericalHarmonicsCache, x, lmax::Integer = _lmax(S))
+function computePlmx!(S::SphericalHarmonicsCache, x, lmax::Integer = _lmax(S); norm::PLMnorm = LMnorm())
     compute_coefficients!(S, lmax)
-    P = computePlmx!(S.P, x, lmax, S.C)
+    P = computePlmx!(S.P, x, lmax, S.C, norm = norm)
     S.P = P
     return S.P
 end
-function computePlmx!(P::AssociatedLegendrePolynomials, x, lmax::Integer, coeff = nothing)
+function computePlmx!(P::AssociatedLegendrePolynomials, x, lmax::Integer, coeff = nothing; kw...)
     @assert lmax >= 0 "degree must be non-negative"
     -1 <= x <= 1 || throw(DomainError("x", "The argument to associated Legendre polynomials must satisfy -1 <= x <= 1"))
     if P.initialized && P.cosθ == x && P.lmax >= lmax
         return P
     elseif P.initialized && P.cosθ == x && P.lmax < lmax
-        _computePlmx_range!(parent(P), x, P.lmax+1:lmax, coeff)
+        _computePlmx_range!(parent(P), x, P.lmax+1:lmax, coeff; kw...)
     else
-        computePlmx!(parent(P), x, lmax, coeff)
+        computePlmx!(parent(P), x, lmax, coeff; kw...)
         P = @set P.cosθ = x
     end
     P = @set P.lmax = lmax
     P = @set P.initialized = true
     return P
 end
-function _computePlmx_range!(P::AbstractVector, x, l_range::AbstractUnitRange{<:Integer}, args...)
+function _computePlmx_range!(P::AbstractVector, x, l_range::AbstractUnitRange{<:Integer}, args...; norm::PLMnorm = LMnorm())
     lmin, lmax = map(Int, extrema(l_range))
     cosθ, sinθ  = promote(x, √(1-x^2))
-    @inbounds _computePlmcostheta!(P, cosθ, sinθ, lmin:lmax, args...)
+    @inbounds _computePlmcostheta!(P, cosθ, sinθ, lmin:lmax, args...; norm = norm)
     return P
 end
 
 """
-    computePlmx(x; lmax::Integer, [m::Integer])
-    computePlmx(x, lmax::Integer, [m::Integer])
+    computePlmx(x; lmax::Integer, [m::Integer], [norm = SphericalHarmonics.LMnorm()])
+    computePlmx(x, lmax::Integer[, m::Integer]; [norm = SphericalHarmonics.LMnorm()])
 
 Compute an entire set of normalized Associated Legendre Polynomials ``\\bar{P}_ℓ^m(x)`` where
 ``0 ≤ ℓ ≤ ℓ_\\mathrm{max}`` and ``0 ≤ m ≤ ℓ``. If `m` is provided then only the polynomials for that
@@ -499,24 +520,28 @@ azimuthal order are computed.
 
 The argument `x` needs to lie in ``-1 ≤ x ≤ 1``. The function implicitly assumes that
 ``x = \\cos(\\theta)`` where ``0 ≤ \\theta ≤ π``.
+
+The keyword argument `norm` may be used to specify the how the polynomials are normalized.
+See [`computePlmcostheta`](@ref) for the possible normalization options.
 """
-computePlmx(x; lmax::Integer, m::Union{Integer, Nothing} = nothing) = computePlmx(x, lmax, m)
-function computePlmx(x, lmax::Integer, m::Union{Integer, Nothing} = nothing)
+computePlmx(x; lmax::Integer, m::Union{Integer, Nothing} = nothing, norm::PLMnorm = LMnorm()) = computePlmx(x, lmax, m; norm = norm)
+function computePlmx(x, lmax::Integer, m::Union{Integer, Nothing} = nothing; norm::PLMnorm = LMnorm())
     P = allocate_p(float(typeof(x)), lmax)
     coeff = compute_coefficients(lmax, m)
-    _applymaybeallm(computePlmx!, P, x, lmax, m, coeff)
-    return AssociatedLegendrePolynomials(x, Int(lmax), P, true)
+    _applymaybeallm(computePlmx!, P, x, lmax, m, coeff; norm = norm)
+    return AssociatedLegendrePolynomials(x, lmax, P, true)
 end
 
 """
-    computePlmcostheta!(P::AbstractVector, θ, lmax::Integer, coeff)
-    computePlmcostheta!(P::AbstractVector, θ::SphericalHarmonics.Pole, lmax::Integer)
+    computePlmcostheta!(P::AbstractVector, θ, lmax::Integer, coeff; [norm = SphericalHarmonics.LMnorm()])
+    computePlmcostheta!(P::AbstractVector, θ::SphericalHarmonics.Pole, lmax::Integer; [norm = SphericalHarmonics.LMnorm()])
 
 Compute an entire set of normalized Associated Legendre Polynomials ``\\bar{P}_ℓ^m(\\cos θ)``
 using the given coefficients, and store in the array `P`. The matrix `coeff` may be computed
 using [`compute_coefficients`](@ref).
 
-See [`computePlmcostheta`](@ref) for the normalization used.
+The keyword argument `norm` may be used to specify the how the polynomials are normalized.
+See [`computePlmcostheta`](@ref) for the possible normalization options.
 
     computePlmcostheta!(P::AbstractVector, θ, lmax::Integer, m::Integer, coeff)
 
@@ -525,46 +550,47 @@ and all ``ℓ`` lying in ``|m| ≤ ℓ ≤ ℓ_\\mathrm{max}``. The array `P` ne
 for ``0 ≤ ℓ ≤ ℓ_\\mathrm{max}`` and ``0 ≤ m ≤ ℓ``, as the recursive evaluation requires the computation of extra elements.
 Pre-existing values in `P` may be overwritten, even for azimuthal orders not equal to ``m``.
 """
-function computePlmcostheta!(P::AbstractVector, θ, lmax, args...)
+function computePlmcostheta!(P::AbstractVector, θ, lmax, args...; norm::PLMnorm = LMnorm())
     zeroP!(P, lmax)
-    _computePlmcostheta_range!(P, θ, 0:lmax, args...)
+    _computePlmcostheta_range!(P, θ, 0:lmax, args...; norm = norm)
     return P
 end
-function _computePlmcostheta_range!(P::AbstractVector, θ, l_range::AbstractUnitRange{<:Integer}, args...)
+function _computePlmcostheta_range!(P::AbstractVector, θ, l_range::AbstractUnitRange{<:Integer}, args...; norm::PLMnorm = LMnorm())
     lmin, lmax = map(Int, extrema(l_range))
     cosθ, sinθ  = promote(cos(θ), sin(θ))
-    @inbounds _computePlmcostheta!(P, cosθ, sinθ, lmin:lmax, args...)
+    @inbounds _computePlmcostheta!(P, cosθ, sinθ, lmin:lmax, args...; norm = norm)
     return P
 end
 
-function computePlmcostheta!(P::AbstractVector, θ::Pole, lmax, args...)
+function computePlmcostheta!(P::AbstractVector, θ::Pole, lmax, args...; norm::PLMnorm = LMnorm())
     zeroP!(P, lmax)
-    _computePlmcostheta_range!(P, θ, 0:lmax, args...)
+    _computePlmcostheta_range!(P, θ, 0:lmax, args...; norm = norm)
     return P
 end
-function _computePlmcostheta_range!(P::AbstractVector, θ::Pole, l_range::AbstractUnitRange{<:Integer}, m::Integer, args...)
+function _computePlmcostheta_range!(P::AbstractVector, θ::Pole, l_range::AbstractUnitRange{<:Integer}, m::Integer, args...; kw...)
     lmin, lmax = map(Int, extrema(l_range))
     if !iszero(m)
         return P
     end
-    _computePlmcostheta_m0_range!(P, θ, lmin:lmax)
+    _computePlmcostheta_m0_range!(P, θ, lmin:lmax; kw...)
     return P
 end
-function _computePlmcostheta_range!(P::AbstractVector, θ::Pole, l_range::AbstractUnitRange{<:Integer}, args...)
-    _computePlmcostheta_m0_range!(P, θ, l_range)
+function _computePlmcostheta_range!(P::AbstractVector, θ::Pole, l_range::AbstractUnitRange{<:Integer}, args...; kw...)
+    _computePlmcostheta_m0_range!(P, θ, l_range; kw...)
     return P
 end
 
-function _computePlmcostheta_m0_range!(P::AbstractVector{T}, ::NorthPole, l_range::AbstractUnitRange{<:Integer}) where {T}
+function _computePlmcostheta_m0_range!(P::AbstractVector{T}, ::NorthPole, l_range::AbstractUnitRange{<:Integer}; norm::PLMnorm = LMnorm()) where {T}
     lmin, lmax = map(Int, extrema(l_range))
     Plm = _wrapSHArray(P, lmax, ZeroTo)
     @inbounds for l in lmin:lmax
         Plm[(l, 0)] = _invsqrt2pi * √(T(2l + 1))
     end
+    normalize!(Plm, norm, l_range, 0)
     return P
 end
 
-function _computePlmcostheta_m0_range!(P::AbstractVector{T}, ::SouthPole, l_range::AbstractUnitRange{<:Integer}) where {T}
+function _computePlmcostheta_m0_range!(P::AbstractVector{T}, ::SouthPole, l_range::AbstractUnitRange{<:Integer}; norm::PLMnorm = LMnorm()) where {T}
     lmin, lmax = map(Int, extrema(l_range))
     Plm = _wrapSHArray(P, lmax, ZeroTo)
     phase = 1
@@ -572,24 +598,25 @@ function _computePlmcostheta_m0_range!(P::AbstractVector{T}, ::SouthPole, l_rang
         Plm[(l, 0)] = phase * _invsqrt2pi * √(T(2l + 1))
         phase *= -1
     end
+    normalize!(Plm, norm, l_range, 0)
     return P
 end
 
-function computePlmcostheta!(P::AssociatedLegendrePolynomials, θ::Pole, lmax, args...)
-    P = _computePlmcostheta_alp!(P, θ, lmax, args...)
+function computePlmcostheta!(P::AssociatedLegendrePolynomials, θ::Pole, lmax, args...; kw...)
+    P = _computePlmcostheta_alp!(P, θ, lmax, args...; kw...)
     return P
 end
-function computePlmcostheta!(P::AssociatedLegendrePolynomials, θ, lmax, args...)
-    P = _computePlmcostheta_alp!(P, θ, lmax, args...)
+function computePlmcostheta!(P::AssociatedLegendrePolynomials, θ, lmax, args...; kw...)
+    P = _computePlmcostheta_alp!(P, θ, lmax, args...; kw...)
     return P
 end
-function _computePlmcostheta_alp!(P::AssociatedLegendrePolynomials, θ, lmax, args...)
+function _computePlmcostheta_alp!(P::AssociatedLegendrePolynomials, θ, lmax, args...; kw...)
     if P.initialized && P.cosθ == cos(θ) && P.lmax >= lmax
         return P
     elseif P.initialized && P.cosθ == cos(θ) && P.lmax < lmax
-        _computePlmcostheta_range!(parent(P), θ, P.lmax+1:lmax, args...)
+        _computePlmcostheta_range!(parent(P), θ, P.lmax+1:lmax, args...; kw...)
     else
-        computePlmcostheta!(parent(P), θ, lmax, args...)
+        computePlmcostheta!(parent(P), θ, lmax, args...; kw...)
         P = @set P.cosθ = cos(θ)
     end
     P = @set P.lmax = lmax
@@ -598,22 +625,25 @@ function _computePlmcostheta_alp!(P::AssociatedLegendrePolynomials, θ, lmax, ar
 end
 
 """
-    computePlmcostheta!(S::SphericalHarmonicsCache, θ, [lmax::Integer])
+    computePlmcostheta!(S::SphericalHarmonicsCache, θ, [lmax::Integer]; [norm = SphericalHarmonics.LMnorm()])
 
 Compute an entire set of normalized Associated Legendre Polynomials ``\\bar{P}_ℓ^m(\\cos θ)``
 using the pre-computed coefficients in `S`, and store the result in `S`. If `lmax` is not provided,
 the value of `lmax` for which coefficients have been computed in `S` is used.
+
+The keyword argument `norm` may be used to specify the how the polynomials are normalized.
+See [`computePlmcostheta`](@ref) for the possible normalization options.
 """
-function computePlmcostheta!(S::SphericalHarmonicsCache, θ, lmax::Integer = _lmax(S))
+function computePlmcostheta!(S::SphericalHarmonicsCache, θ, lmax::Integer = _lmax(S); kw...)
     compute_coefficients!(S, lmax)
-    P = computePlmcostheta!(S.P, θ, lmax, S.C)
+    P = computePlmcostheta!(S.P, θ, lmax, S.C; kw...)
     S.P = P
     return P
 end
 
 """
-    computePlmcostheta(θ; lmax::Integer, [m::Integer])
-    computePlmcostheta(θ, lmax::Integer, [m::Integer])
+    computePlmcostheta(θ; lmax::Integer, [m::Integer], [norm = SphericalHarmonics.LMnorm()])
+    computePlmcostheta(θ, lmax::Integer[, m::Integer]; [norm = SphericalHarmonics.LMnorm()])
 
 Compute an entire set of normalized Associated Legendre Polynomials ``\\bar{P}_ℓ^m(\\cos θ)`` where
 ``0 ≤ ℓ ≤ ℓ_\\mathrm{max}`` and ``0 ≤ m ≤ ℓ`` for colatitude ``\\theta``. If `m` is provided then only the
@@ -636,7 +666,27 @@ P_{\\ell m}\\left(x\\right)=\\left(1-x^{2}\\right)^{m/2}\\frac{d^{m}}{dx^{m}}P_{
 The normalized polynomials ``\\bar{P}_{\\ell}^m`` satisfy
 
 ```math
-\\int_{0}^{\\pi} \\sin θ d\\theta\\,\\left| \\bar{P}_{\\ell}^m(\\cos θ) \\right|^2 = \\frac{1}{\\pi}
+\\int_{-1}^{1} dx\\,\\left| \\bar{P}_{\\ell}^m(x) \\right|^2 = \\frac{1}{\\pi}
+```
+
+A different normalization may be chosen by specifying the keyword argument `norm`.
+This can take the values
+
+* `SphericalHarmonics.LMnorm()`: the default normalization described above
+* `SphericalHarmonics.Orthonormal()`: Orthonormal polynomials that are defined as
+```math
+\\tilde{P}_{\\ell}^m = \\sqrt{\\frac{(2\\ell + 1)(\\ell-m)!}{2(\\ell+m)!}} P_{\\ell m} =
+\\sqrt{\\pi} \\bar{P}_{\\ell m},
+```
+and satisfy
+```math
+\\int_{-1}^{1} \\tilde{P}_{\\ell m}(x) \\tilde{P}_{k m}(x) dx = \\delta_{ℓk}
+```
+* `SphericalHarmonics.Unnormalized()`: The polynomials ``P_{ℓm}`` that satisfy ``P_{ℓm}(1)=\\delta_{m0}``
+within numerical precision bounds, as well as
+
+```math
+\\int_{-1}^{1} P_{\\ell m}(x) P_{k m}(x) dx = \\frac{2(\\ell+m)!}{(2\\ell+1)(\\ell-m)!}\\delta_{ℓk}
 ```
 
 !!! info
@@ -665,48 +715,51 @@ julia> P = computePlmcostheta(big(pi)/2, lmax = 1)
  -0.4886025119029199215863846228383470045758856081942277021382431574458410003616367
 ```
 """
-computePlmcostheta(θ; lmax::Integer, m::Union{Integer, Nothing} = nothing) = computePlmcostheta(θ, lmax, m)
+computePlmcostheta(θ; lmax::Integer, m::Union{Integer, Nothing} = nothing, norm::PLMnorm = LMnorm()) = computePlmcostheta(θ, lmax, m; norm = norm)
 
-_applymaybeallm(f, P, θ, lmax, m::Nothing, coeff...) = f(P, θ, lmax, coeff...)
-_applymaybeallm(f, P, θ, lmax, m, coeff...) = f(P, θ, lmax, m, coeff...)
+_applymaybeallm(f, P, θ, lmax, m::Nothing, coeff...; kw...) = f(P, θ, lmax, coeff...; kw...)
+_applymaybeallm(f, P, θ, lmax, m, coeff...; kw...) = f(P, θ, lmax, m, coeff...; kw...)
 
 _maybecomputecoeff(lmax, θ::Pole, m) = nothing
 _maybecomputecoeff(lmax, θ, m) = compute_coefficients(promote_type(Float64, float(typeof(θ))), Int(lmax), m)
 
-function computePlmcostheta(θ, lmax::Integer, m::Union{Integer, Nothing} = nothing)
+function computePlmcostheta(θ, lmax::Integer, m::Union{Integer, Nothing} = nothing; norm::PLMnorm = LMnorm())
     coeff = _maybecomputecoeff(lmax, θ, m)
     P = allocate_p(float(typeof(θ)), lmax)
-    _applymaybeallm(computePlmcostheta!, P, θ, lmax, m, coeff)
-    return AssociatedLegendrePolynomials(cos(θ), Int(lmax), P, true)
+    _applymaybeallm(computePlmcostheta!, P, θ, lmax, m, coeff; norm = norm)
+    return AssociatedLegendrePolynomials(cos(θ), lmax, P, true)
 end
 
 @doc raw"""
-    SphericalHarmonics.associatedLegendre(θ; l::Integer, m::Integer, [coeff = nothing])
+    SphericalHarmonics.associatedLegendre(θ; l::Integer, m::Integer, [coeff = nothing], [norm = SphericalHarmonics.LMnorm()])
 
 Evaluate the normalized associated Legendre polynomial ``\bar{P}_ℓ^m(\cos \theta)``.
 Optionally a matrix of coefficients returned by [`compute_coefficients`](@ref) may be provided.
 
-See [`computePlmcostheta`](@ref) for the specific choice of normalization used here.
+The keyword argument `norm` may be used to specify the how the polynomials are normalized.
+See [`computePlmcostheta`](@ref) for the possible normalization options.
 """
-associatedLegendre(θ; l::Integer, m::Integer, coeff = nothing) = associatedLegendre(θ, l, m, coeff)
-function associatedLegendre(θ, l::Integer, m::Integer, coeff = nothing)
-    _computePlmcostheta(cos(θ), sin(θ), l, m, coeff)
+associatedLegendre(θ; l::Integer, m::Integer, coeff = nothing, norm::PLMnorm = LMnorm()) = associatedLegendre(θ, l, m, coeff; norm = norm)
+function associatedLegendre(θ, l::Integer, m::Integer, coeff = nothing; norm::PLMnorm = LMnorm())
+    _computePlmcostheta(cos(θ), sin(θ), l, m, coeff; norm = norm)
 end
 
-function associatedLegendre(θ::NorthPole, l::Integer, m::Integer, coeff = nothing)
+function associatedLegendre(::NorthPole, l::Integer, m::Integer, coeff = nothing; norm::PLMnorm = LMnorm())
     T = promote_type(Float64, float(typeof(l)))
     if m != 0
         return zero(T)
     end
     P = _invsqrt2pi * √(T(2l + 1))
+    P * invnorm(l, m, norm)
 end
 
-function associatedLegendre(θ::SouthPole, l::Integer, m::Integer, coeff = nothing)
+function associatedLegendre(::SouthPole, l::Integer, m::Integer, coeff = nothing; norm::PLMnorm = LMnorm())
     T = promote_type(Float64, float(typeof(l)))
     if m != 0
         return zero(T)
     end
     P = _invsqrt2pi * (-1)^Int(l) * √(T(2l + 1))
+    P * invnorm(l, m, norm)
 end
 
 ######################################################################################

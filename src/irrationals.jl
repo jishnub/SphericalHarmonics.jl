@@ -1,7 +1,9 @@
 Base.@irrational _invsqrt2 0.7071067811865476 1/√(big(2))
+Base.@irrational _sqrtpi 1.772453850905516 √(big(pi))
 Base.@irrational _invsqrt2pi 0.3989422804014327 1/√(2*big(pi))
 Base.@irrational _sqrt3by4pi 0.4886025119029199 √(3/(4big(pi)))
 Base.@irrational _sqrt3by2pi 0.690988298942671 √(3/(2big(pi)))
+Base.@irrational _log2pi 1.8378770664093456 log(2big(pi))
 
 """
     SphericalHarmonics.Pole <: Real
