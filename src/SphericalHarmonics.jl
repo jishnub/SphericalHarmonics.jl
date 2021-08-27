@@ -272,25 +272,32 @@ function _wrapSHArray(P, lmax, m_range)
 end
 
 abstract type PLMnorm end
-struct Orthonormal <: PLMnorm end
-struct Unnormalized <: PLMnorm end
-struct LMnorm <: PLMnorm end # Limpanuparb-Milthorpe norm as used in the paper
+struct Orthonormal <: PLMnorm cs::Bool end
+struct Unnormalized <: PLMnorm cs::Bool end
+struct LMnorm <: PLMnorm cs::Bool end # Limpanuparb-Milthorpe norm as used in the paper
 
-function invnorm(l, m, ::Unnormalized)
-    exp(-(log(2l+1) - _log2pi + loggamma(l-m+1) - loggamma(l+m+1))/2)
+(::Type{T})(; csphase = true) where {T<:PLMnorm} = T(csphase)
+
+# Condon-Shortey phase is included by default. This may be disabled by passing
+# the flag to the normalization specifier
+csphase(norm, m) = !norm.cs ? (-1)^m : 1
+function invnorm(l, m, norm::Unnormalized)
+    f = exp(-(log(2l+1) - _log2pi + loggamma(l-m+1) - loggamma(l+m+1))/2)
+    f * csphase(norm, m)
 end
-invnorm(l, m, ::Orthonormal) = _sqrtpi
-invnorm(l, m, ::LMnorm) = true
+invnorm(l, m, norm::Orthonormal) = (f = _sqrtpi; f * csphase(norm, m))
+invnorm(l, m, norm::LMnorm) = (f = true; f * csphase(norm, m))
 
-normalize!(P, ::LMnorm, args...) = P
-function normalize!(P, norm, l, m_P = nothing)
-    m_l(modes, l, ::Nothing) =  m_range(modes, l)
-    m_l(modes, l, m) =  intersect(m_range(modes, l), m)
-
-    modes = LM(l, m_P === nothing ? ZeroTo : m_P)
+m_l(modes, l, ::Nothing) =  m_range(modes, l)
+m_l(modes, l, m) =  intersect(m_range(modes, l), m)
+function normalize!(P, norm, l, m = nothing)
+    norm isa LMnorm && norm.cs && return P # short-circuit the standard case
+    modes = LM(l, m === nothing ? ZeroTo : m)
     Plm = _wrapSHArray(P, maximum(l), ZeroTo)
-    for l in l_range(modes), m in m_l(modes, l, m_P)
-        Plm[(l,m)] *= invnorm(l, m, norm)
+    for l in l_range(modes)
+        for m in m_l(modes, l, m)
+            Plm[(l,m)] *= invnorm(l, m, norm)
+        end
     end
     return P
 end
@@ -660,7 +667,7 @@ where ``P_{\\ell m}`` are the standard
 and are defined in terms of Legendre polynomials ``P_\\ell(x)`` as
 
 ```math
-P_{\\ell m}\\left(x\\right)=\\left(1-x^{2}\\right)^{m/2}\\frac{d^{m}}{dx^{m}}P_{\\ell}\\left(x\\right).
+P_{\\ell m}\\left(x\\right)=(-1)^m \\left(1-x^{2}\\right)^{m/2}\\frac{d^{m}}{dx^{m}}P_{\\ell}\\left(x\\right).
 ```
 
 The normalized polynomials ``\\bar{P}_{\\ell}^m`` satisfy
@@ -669,11 +676,12 @@ The normalized polynomials ``\\bar{P}_{\\ell}^m`` satisfy
 \\int_{-1}^{1} dx\\,\\left| \\bar{P}_{\\ell}^m(x) \\right|^2 = \\frac{1}{\\pi}
 ```
 
-A different normalization may be chosen by specifying the keyword argument `norm`.
-This can take the values
+A different normalization may be chosen by specifying the keyword argument `norm`, with optionally the
+Condon-Shortley phase disabled by passing the keyword argument `csphase` to the constructor of the
+normalization specifier. The possible normalization options are:
 
-* `SphericalHarmonics.LMnorm()`: the default normalization described above
-* `SphericalHarmonics.Orthonormal()`: Orthonormal polynomials that are defined as
+* `SphericalHarmonics.LMnorm([; csphase = true])`: the default normalization described above
+* `SphericalHarmonics.Orthonormal([; csphase = true])`: Orthonormal polynomials that are defined as
 ```math
 \\tilde{P}_{\\ell}^m = \\sqrt{\\frac{(2\\ell + 1)(\\ell-m)!}{2(\\ell+m)!}} P_{\\ell m} =
 \\sqrt{\\pi} \\bar{P}_{\\ell m},
@@ -682,15 +690,15 @@ and satisfy
 ```math
 \\int_{-1}^{1} \\tilde{P}_{\\ell m}(x) \\tilde{P}_{k m}(x) dx = \\delta_{ℓk}
 ```
-* `SphericalHarmonics.Unnormalized()`: The polynomials ``P_{ℓm}`` that satisfy ``P_{ℓm}(1)=\\delta_{m0}``
+* `SphericalHarmonics.Unnormalized([; csphase = true])`: The polynomials ``P_{ℓm}`` that satisfy ``P_{ℓm}(1)=\\delta_{m0}``
 within numerical precision bounds, as well as
 
 ```math
 \\int_{-1}^{1} P_{\\ell m}(x) P_{k m}(x) dx = \\frac{2(\\ell+m)!}{(2\\ell+1)(\\ell-m)!}\\delta_{ℓk}
 ```
 
-!!! info
-    The Condon-Shortley phase factor ``(-1)^m`` is not included in the definition of the polynomials.
+In each case setting `csphase = false` will lead to an overall factor of ``(-1)^m`` being multiplied
+to the polynomials.
 
 Returns an `AbstractVector` that may be indexed using `(ℓ,m)` pairs aside from the
 canonical indexing with `Int`s.
