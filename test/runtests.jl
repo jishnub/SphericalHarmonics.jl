@@ -6,6 +6,8 @@ using Aqua
 using LegendrePolynomials
 using WignerD
 using OffsetArrays
+using MultiplesOfPi
+using DualNumbers
 
 using SphericalHarmonics: NorthPole,
 SouthPole,
@@ -1122,5 +1124,15 @@ end
                 @test isapprox(Ylmθ3ϕ[(l,m)], Ylmθϕ[(l,m)], atol = 1e-13, rtol = 1e-8)
             end
         end
+    end
+end
+
+@testset "derivatives of Plm" begin
+    piby2 = Dual(Pi, 1)
+    for l in 1:20, m in 0:2:l
+        # the polynomials for even l+m are even, so their derivatives are odd
+        # we check that these go to zero exactly at θ = pi/2
+        dP = dualpart(associatedLegendre(piby2, l = l, m = m))
+        @test dP == 0
     end
 end

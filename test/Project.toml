@@ -1,7 +1,9 @@
 [deps]
 Aqua = "4c88cf16-eb10-579e-8560-4a9242c79595"
+DualNumbers = "fa6b7ba4-c1ee-5f82-b5fc-ecf0adba8f74"
 HCubature = "19dc6840-f33b-545b-b366-655c7e3ffd49"
 LegendrePolynomials = "3db4a2ba-fc88-11e8-3e01-49c72059a882"
+MultiplesOfPi = "b749d01f-fee9-4313-9f11-89ddf7ea9d58"
 OffsetArrays = "6fe1bfb0-de20-5000-8ca7-80f57d26f881"
 SphericalHarmonicModes = "0e9554e2-b38b-11e9-16d7-9d9abfec665a"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
@@ -9,8 +11,10 @@ WignerD = "87c4ff3e-34df-11e9-37a7-516cea4e0402"
 
 [compat]
 Aqua = "0.5"
+DualNumbers = "0.6"
 HCubature = "1"
 LegendrePolynomials = "0.3"
+MultiplesOfPi = "0.5"
 OffsetArrays = "1"
 SphericalHarmonicModes = "0.4.7"
 WignerD = "0.1"
