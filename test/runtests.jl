@@ -7,7 +7,7 @@ using LegendrePolynomials
 using WignerD
 using OffsetArrays
 using MultiplesOfPi
-using DualNumbers
+using ForwardDiff
 
 using SphericalHarmonics: NorthPole,
 SouthPole,
@@ -17,6 +17,7 @@ RealHarmonics,
 ComplexHarmonics,
 _lmax,
 associatedLegendre,
+associatedLegendrex,
 Unnormalized,
 LMnorm,
 Orthonormal
@@ -525,6 +526,16 @@ end
                 @test all(x -> isapproxdefault(x, atol=1e-13,  rtol=1e-13), zip(Y1, Y2))
             end
         end
+    end
+
+    function doublefactorial(l)
+        prod(float(i) for i in big(l):-2:1)
+    end
+
+    # check against the explicit value for θ = pi/2
+    for l in 499:1000
+        P = SphericalHarmonics.associatedLegendrex(big(0), l = l, m = l, norm = Unnormalized())
+        @test P ≈ (-1)^l * doublefactorial(2l-1)
     end
 end
 
@@ -1128,11 +1139,12 @@ end
 end
 
 @testset "derivatives of Plm" begin
-    piby2 = Dual(Pi, 1)
-    for l in 1:20, m in 0:2:l
+    for l in 1:20, m in l:-2:0
         # the polynomials for even l+m are even, so their derivatives are odd
         # we check that these go to zero exactly at θ = pi/2
-        dP = dualpart(associatedLegendre(piby2, l = l, m = m))
+        dP = ForwardDiff.derivative(θ -> associatedLegendre(θ, l = l, m = m), Pi/2)
+        @test dP == 0
+        dP = ForwardDiff.derivative(x -> associatedLegendrex(x, l = l, m = m), 0)
         @test dP == 0
     end
 end
