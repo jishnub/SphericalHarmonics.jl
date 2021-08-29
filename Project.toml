@@ -1,8 +1,9 @@
 name = "SphericalHarmonics"
 uuid = "c489a379-e885-57ff-9236-bd896d33c250"
-version = "0.1.17"
+version = "0.1.18"
 
 [deps]
+IrrationalConstants = "92d709cd-6900-40b7-9082-c6be49f344b6"
 Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
 Setfield = "efcf1570-3423-57d1-acb7-fd33fddbac46"
 SpecialFunctions = "276daf66-3868-5448-9aa4-cd146d93841b"
@@ -11,8 +12,9 @@ SphericalHarmonicModes = "0e9554e2-b38b-11e9-16d7-9d9abfec665a"
 StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
 
 [compat]
-DualNumbers = "0.6"
+ForwardDiff = "0.10"
 HCubature = "1"
+IrrationalConstants = "0.1"
 LegendrePolynomials = "0.3"
 MultiplesOfPi = "0.5"
 OffsetArrays = "1"
@@ -26,7 +28,7 @@ julia = "1"
 
 [extras]
 Aqua = "4c88cf16-eb10-579e-8560-4a9242c79595"
-DualNumbers = "fa6b7ba4-c1ee-5f82-b5fc-ecf0adba8f74"
+ForwardDiff = "f6369f11-7733-5829-9624-2563aa707210"
 HCubature = "19dc6840-f33b-545b-b366-655c7e3ffd49"
 LegendrePolynomials = "3db4a2ba-fc88-11e8-3e01-49c72059a882"
 MultiplesOfPi = "b749d01f-fee9-4313-9f11-89ddf7ea9d58"
@@ -35,4 +37,4 @@ Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 WignerD = "87c4ff3e-34df-11e9-37a7-516cea4e0402"
 
 [targets]
-test = ["Aqua", "DualNumbers", "HCubature", "LegendrePolynomials", "MultiplesOfPi", "OffsetArrays", "Test", "WignerD"]
+test = ["Aqua", "ForwardDiff", "HCubature", "LegendrePolynomials", "MultiplesOfPi", "OffsetArrays", "Test", "WignerD"]

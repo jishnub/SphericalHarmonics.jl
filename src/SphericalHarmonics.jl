@@ -1,5 +1,6 @@
 module SphericalHarmonics
 
+using IrrationalConstants
 using SphericalHarmonicModes
 using SphericalHarmonicArrays
 using Printf
@@ -282,10 +283,10 @@ struct LMnorm <: PLMnorm cs::Bool end # Limpanuparb-Milthorpe norm as used in th
 # the flag to the normalization specifier
 csphase(norm, m) = !norm.cs ? (-1)^m : 1
 function invnorm(l, m, norm::Unnormalized)
-    f = exp(-(log(2l+1) - _log2pi + loggamma(l-m+1) - loggamma(l+m+1))/2)
+    f = exp(-(log(2l+1) - log2π + loggamma(l-m+1) - loggamma(l+m+1))/2)
     f * csphase(norm, m)
 end
-invnorm(l, m, norm::Orthonormal) = (f = _sqrtpi; f * csphase(norm, m))
+invnorm(l, m, norm::Orthonormal) = (f = sqrtπ; f * csphase(norm, m))
 invnorm(l, m, norm::LMnorm) = (f = true; f * csphase(norm, m))
 
 m_l(modes, l, ::Nothing) =  m_range(modes, l)
@@ -294,9 +295,10 @@ function normalize!(P, norm, l, m = nothing)
     norm isa LMnorm && norm.cs && return P # short-circuit the standard case
     modes = LM(l, m === nothing ? ZeroTo : m)
     Plm = _wrapSHArray(P, maximum(l), ZeroTo)
+    T = eltype(Plm)
     for l in l_range(modes)
         for m in m_l(modes, l, m)
-            Plm[(l,m)] *= invnorm(l, m, norm)
+            Plm[(l,m)] *= invnorm(T(l), T(m), norm)
         end
     end
     return P
@@ -312,7 +314,7 @@ end
     Plm = _wrapSHArray(P, lmax, ZeroTo)
 
     if lmin == 0
-        Plm[(0, 0)] = _invsqrt2pi
+        Plm[(0, 0)] = invsqrt2π
     end
 
     if (lmax > 0)
@@ -356,9 +358,9 @@ end
     Plm = _wrapSHArray(P, lmax, ZeroTo)
 
     if m == 0 && lmin == 0
-        Plm[(0, 0)] = _invsqrt2pi
+        Plm[(0, 0)] = invsqrt2π
     end
-    temp = T(_invsqrt2pi)
+    temp = T(invsqrt2π)
 
     if (lmax > 0)
         P11 = -(_sqrt3by4pi * sintheta)
@@ -421,7 +423,7 @@ end
 
     T = _promotetype(costheta, sintheta, coeff)
 
-    Pmm = T(_invsqrt2pi)
+    Pmm = T(invsqrt2π)
 
     if m > 0
         Pmm = -T(_sqrt3by4pi * sintheta)
@@ -433,7 +435,7 @@ end
     end
 
     if m == l
-        Pmm *= invnorm(l, m, norm)
+        Pmm *= invnorm(T(l), T(m), norm)
         return Pmm
     end
 
@@ -441,7 +443,7 @@ end
 
     # Recursion at a constant m to compute Pl,m from Pm,m and Pm+1,m
     Plm = Plmrecursion(l, m, costheta, Pmm, Pmp1m, coeff, T)
-    Plm *= invnorm(l, m, norm)
+    Plm *= invnorm(T(l), T(m), norm)
     return Plm
 end
 
@@ -461,7 +463,7 @@ using the given coefficients, and store in the array `P`.
 The matrix `coeff` may be computed using [`compute_coefficients`](@ref).
 
 The argument `x` needs to lie in ``-1 ≤ x ≤ 1``. The function implicitly assumes that
-``x = \\cos(\\theta)`` where ``0 ≤ \\theta ≤ π``.
+``x = \\cos\\theta`` where ``0 ≤ \\theta ≤ π``.
 
 The keyword argument `norm` may be used to specify the how the polynomials are normalized.
 See [`computePlmcostheta`](@ref) for the possible normalization options.
@@ -526,7 +528,7 @@ Compute an entire set of normalized Associated Legendre Polynomials ``\\bar{P}_�
 azimuthal order are computed.
 
 The argument `x` needs to lie in ``-1 ≤ x ≤ 1``. The function implicitly assumes that
-``x = \\cos(\\theta)`` where ``0 ≤ \\theta ≤ π``.
+``x = \\cos\\theta`` where ``0 ≤ \\theta ≤ π``.
 
 The keyword argument `norm` may be used to specify the how the polynomials are normalized.
 See [`computePlmcostheta`](@ref) for the possible normalization options.
@@ -591,7 +593,7 @@ function _computePlmcostheta_m0_range!(P::AbstractVector{T}, ::NorthPole, l_rang
     lmin, lmax = map(Int, extrema(l_range))
     Plm = _wrapSHArray(P, lmax, ZeroTo)
     @inbounds for l in lmin:lmax
-        Plm[(l, 0)] = _invsqrt2pi * √(T(2l + 1))
+        Plm[(l, 0)] = invsqrt2π * √(T(2l + 1))
     end
     normalize!(Plm, norm, l_range, 0)
     return P
@@ -602,7 +604,7 @@ function _computePlmcostheta_m0_range!(P::AbstractVector{T}, ::SouthPole, l_rang
     Plm = _wrapSHArray(P, lmax, ZeroTo)
     phase = 1
     @inbounds for l in lmin:lmax
-        Plm[(l, 0)] = phase * _invsqrt2pi * √(T(2l + 1))
+        Plm[(l, 0)] = phase * invsqrt2π * √(T(2l + 1))
         phase *= -1
     end
     normalize!(Plm, norm, l_range, 0)
@@ -739,6 +741,21 @@ function computePlmcostheta(θ, lmax::Integer, m::Union{Integer, Nothing} = noth
 end
 
 @doc raw"""
+    SphericalHarmonics.associatedLegendrex(x; l::Integer, m::Integer, [coeff = nothing], [norm = SphericalHarmonics.LMnorm()])
+
+Evaluate the normalized associated Legendre polynomial ``\bar{P}_ℓ^m(x)``.
+Optionally a matrix of coefficients returned by [`compute_coefficients`](@ref) may be provided.
+
+The keyword argument `norm` may be used to specify the how the polynomials are normalized.
+See [`computePlmcostheta`](@ref) for the possible normalization options.
+"""
+associatedLegendrex(x; l::Integer, m::Integer, coeff = nothing, norm::PLMnorm = LMnorm()) =
+    associatedLegendrex(x, l, m, coeff; norm = norm)
+function associatedLegendrex(x, l::Integer, m::Integer, coeff = nothing; norm::PLMnorm = LMnorm())
+    _computePlmcostheta(x, √(1-x^2), l, m, coeff; norm = norm)
+end
+
+@doc raw"""
     SphericalHarmonics.associatedLegendre(θ; l::Integer, m::Integer, [coeff = nothing], [norm = SphericalHarmonics.LMnorm()])
 
 Evaluate the normalized associated Legendre polynomial ``\bar{P}_ℓ^m(\cos \theta)``.
@@ -752,13 +769,14 @@ function associatedLegendre(θ, l::Integer, m::Integer, coeff = nothing; norm::P
     _computePlmcostheta(cos(θ), sin(θ), l, m, coeff; norm = norm)
 end
 
+_Plm_pole(T, l, m, norm) = invsqrt2π * √(T(2l + 1)) * invnorm(T(l), T(m), norm)
+
 function associatedLegendre(::NorthPole, l::Integer, m::Integer, coeff = nothing; norm::PLMnorm = LMnorm())
     T = promote_type(Float64, float(typeof(l)))
     if m != 0
         return zero(T)
     end
-    P = _invsqrt2pi * √(T(2l + 1))
-    P * invnorm(l, m, norm)
+    _Plm_pole(T, l, m, norm)
 end
 
 function associatedLegendre(::SouthPole, l::Integer, m::Integer, coeff = nothing; norm::PLMnorm = LMnorm())
@@ -766,8 +784,7 @@ function associatedLegendre(::SouthPole, l::Integer, m::Integer, coeff = nothing
     if m != 0
         return zero(T)
     end
-    P = _invsqrt2pi * (-1)^Int(l) * √(T(2l + 1))
-    P * invnorm(l, m, norm)
+    (-1)^Int(l) * _Plm_pole(T, l, m, norm)
 end
 
 ######################################################################################
@@ -791,7 +808,7 @@ phase(::ComplexHarmonics, ::Type{ZeroTo}, m, ϕ, norm, CSphase) = cis(m*ϕ) * no
 @propagate_inbounds function fill_m_maybenegm!(Y, P, lmax, m, ϕ, CSphase, ::Type{FullRange}, SHType)
     m >= 0 || throw(ArgumentError("m must be ≥ 0"))
     @assert lmax >= 0 "degree must be non-negative"
-    phasempos, phasemneg = phase(SHType, FullRange, m, ϕ, _invsqrt2, CSphase)
+    phasempos, phasemneg = phase(SHType, FullRange, m, ϕ, invsqrt2, CSphase)
 
     PS = _wrapSHArray(P, lmax, ZeroTo)
     Ylm = _wrapSHArray(Y, lmax, FullRange)
@@ -807,7 +824,7 @@ end
 @propagate_inbounds function fill_m_maybenegm!(Y, P, lmax, m, ϕ, CSphase, ::Type{ZeroTo}, SHType)
     m >= 0 || throw(ArgumentError("m must be ≥ 0"))
     @assert lmax >= 0 "degree must be non-negative"
-    phasem = phase(SHType, ZeroTo, m, ϕ, _invsqrt2, CSphase)
+    phasem = phase(SHType, ZeroTo, m, ϕ, invsqrt2, CSphase)
 
     PS = _wrapSHArray(P, lmax, ZeroTo)
     Ylm = _wrapSHArray(Y, lmax, ZeroTo)
@@ -820,7 +837,7 @@ end
 
 @propagate_inbounds function fill_m!(Y, P, lmax, m, ϕ, CSphase, ::Type{FullRange}, SHType::ComplexHarmonics)
     @assert lmax >= 0 "degree must be non-negative"
-    phasempos, phasemneg = phase(SHType, FullRange, m, ϕ, _invsqrt2, CSphase)
+    phasempos, phasemneg = phase(SHType, FullRange, m, ϕ, invsqrt2, CSphase)
 
     PS = _wrapSHArray(P, lmax, ZeroTo)
     Ylm = _wrapSHArray(Y, lmax, FullRange)
@@ -838,7 +855,7 @@ end
 
 @propagate_inbounds function fill_m!(Y, P, lmax, m, ϕ, CSphase, ::Type{FullRange}, SHType::RealHarmonics)
     @assert lmax >= 0 "degree must be non-negative"
-    C, S = phase(SHType, FullRange, m, ϕ, _invsqrt2, CSphase)
+    C, S = phase(SHType, FullRange, m, ϕ, invsqrt2, CSphase)
 
     PS = _wrapSHArray(P, lmax, ZeroTo)
     Ylm = _wrapSHArray(Y, lmax, FullRange)
@@ -858,7 +875,7 @@ end
     m >= 0 || throw(ArgumentError("m must be ≥ 0"))
     @assert lmax >= 0 "degree must be non-negative"
 
-    phasem = phase(SHType, ZeroTo, m, ϕ, _invsqrt2, CSphase)
+    phasem = phase(SHType, ZeroTo, m, ϕ, invsqrt2, CSphase)
     PS = _wrapSHArray(P, lmax, ZeroTo)
     Ylm = _wrapSHArray(Y, lmax, ZeroTo)
 
@@ -873,7 +890,7 @@ end
     PS = _wrapSHArray(P, lmax, ZeroTo)
     Ylm = _wrapSHArray(Y, lmax, m_range)
     for l in 0:Int(lmax)
-        Ylm[(l, 0)] = PS[(l, 0)] * _invsqrt2
+        Ylm[(l, 0)] = PS[(l, 0)] * invsqrt2
     end
 
     CSphase = 1
@@ -891,7 +908,7 @@ end
     Ylm = _wrapSHArray(Y, lmax, m_range)
     if iszero(m)
         for l in 0:Int(lmax)
-            Ylm[(l, 0)] = PS[(l, 0)] * _invsqrt2
+            Ylm[(l, 0)] = PS[(l, 0)] * invsqrt2
         end
     else
         fill_m!(Y, P, lmax, m, ϕ, (-1)^m, m_range, SHType)
@@ -959,7 +976,7 @@ function _computeYlm_poles!(Y, P, ϕ, lmax, m_range)
     Ylm = _wrapSHArray(Y, lmax, m_range)
 
     @inbounds for l in 0:lmax
-        Ylm[(l, 0)] = PS[(l, 0)] * _invsqrt2
+        Ylm[(l, 0)] = PS[(l, 0)] * invsqrt2
     end
     return Y
 end
@@ -1185,9 +1202,9 @@ function sphericalharmonic(θ, ϕ, l::Integer, m::Integer, SHType::HarmonicType 
 
     P = associatedLegendre(θ, l, abs(m), coeff)
     if m == 0
-        return _invsqrt2 * P
+        return invsqrt2 * P
     end
-    phasepos, phaseneg = phase(SHType, FullRange, abs(m), ϕ, _invsqrt2, (-1)^Int(m))
+    phasepos, phaseneg = phase(SHType, FullRange, abs(m), ϕ, invsqrt2, (-1)^Int(m))
     norm = m >= 0 ? phasepos : phaseneg
     norm * P
 end
