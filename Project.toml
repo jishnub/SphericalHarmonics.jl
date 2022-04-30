@@ -1,6 +1,6 @@
 name = "SphericalHarmonics"
 uuid = "c489a379-e885-57ff-9236-bd896d33c250"
-version = "0.1.18"
+version = "0.1.19"
 
 [deps]
 IrrationalConstants = "92d709cd-6900-40b7-9082-c6be49f344b6"
