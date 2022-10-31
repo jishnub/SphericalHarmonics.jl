@@ -1084,7 +1084,7 @@ Y_{\ell,m}\left(\theta,\phi\right)=\begin{cases}
 \end{cases}
 ```
 
-This definition corresponds to [Laplace sphercial harmonics](https://en.wikipedia.org/wiki/Spherical_harmonics#Conventions),
+This definition corresponds to [Laplace spherical harmonics](https://en.wikipedia.org/wiki/Spherical_harmonics#Conventions),
 whereas the quantum mechanical definition prepends a Condon-Shortley phase on the harmonics.
 
 The real spherical harmonics are defined as
