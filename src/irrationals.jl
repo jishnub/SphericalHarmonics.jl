@@ -1,5 +1,5 @@
-Base.@irrational _sqrt3by4pi 0.4886025119029199 √(3/(4big(pi)))
-Base.@irrational _sqrt3by2pi 0.690988298942671 √(3/(2big(pi)))
+IrrationalConstants.@irrational _sqrt3by4pi √(3 / (4 * big(pi))) _Sqrt3by4pi
+IrrationalConstants.@irrational _sqrt3by2pi √(3 / (2 * big(pi))) _Sqrt3by2pi
 
 """
     SphericalHarmonics.Pole <: Real
