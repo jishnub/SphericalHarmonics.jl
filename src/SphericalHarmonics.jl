@@ -6,7 +6,7 @@ using SphericalHarmonicArrays
 using Printf
 using StaticArrays
 using Setfield
-using SpecialFunctions: loggamma
+using Gamma: loggamma
 
 export computeYlm, computeYlm!
 export computePlmcostheta, computePlmcostheta!
